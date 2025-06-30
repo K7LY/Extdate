@@ -19,11 +19,16 @@ public enum TurnPhase
 
 public class GameManager : MonoBehaviour
 {
-    [Header("ゲーム設定")]
-    public int maxRounds = 6;
+    [Header("ゲーム設定（Agricola風）")]
+    public int maxRounds = 14;
     public int maxPlayers = 4;
-    public int startingHandSize = 5;
-    public int victoryPointsToWin = 15;
+    public int startingHandSize = 7;
+    
+    [Header("収穫ラウンド")]
+    public int[] harvestRounds = { 4, 7, 9, 11, 13, 14 };
+    
+    [Header("乞食カード")]
+    [SerializeField] private Dictionary<Player, int> beggingCards = new Dictionary<Player, int>();
     
     [Header("ゲーム状態")]
     public GameState currentGameState = GameState.Setup;
@@ -208,11 +213,10 @@ public class GameManager : MonoBehaviour
             actionSpace.RemoveAllWorkers();
         }
         
-        // 勝利条件をチェック
-        if (CheckWinCondition())
+        // 収穫フェーズかチェック
+        if (IsHarvestRound(currentRound))
         {
-            EndGame();
-            return;
+            ExecuteHarvest();
         }
         
         // 次のラウンドへ
@@ -230,27 +234,117 @@ public class GameManager : MonoBehaviour
         }
     }
     
-    private bool CheckWinCondition()
+    private bool IsHarvestRound(int round)
     {
+        return System.Array.Exists(harvestRounds, r => r == round);
+    }
+    
+    private void ExecuteHarvest()
+    {
+        Debug.Log("収穫フェーズを実行中...");
+        
         foreach (Player player in players)
         {
-            if (player.GetVictoryPoints() >= victoryPointsToWin)
+            // 1. 収穫
+            player.HarvestCrops();
+            
+            // 2. 餌やり
+            int beggingCardsReceived = player.FeedFamily();
+            if (beggingCardsReceived > 0)
             {
-                return true;
+                if (!beggingCards.ContainsKey(player))
+                    beggingCards[player] = 0;
+                beggingCards[player] += beggingCardsReceived;
+                
+                Debug.Log($"{player.playerName}が乞食カードを{beggingCardsReceived}枚受け取りました");
             }
+            
+            // 3. 動物の繁殖
+            player.BreedAnimals();
         }
-        return false;
     }
     
     private void EndGame()
     {
         ChangeGameState(GameState.GameOver);
         
+        // Agricola風のスコア計算
+        CalculateFinalScores();
+        
         // 勝者を決定
         Player winner = players.OrderByDescending(p => p.GetVictoryPoints()).First();
         OnGameWon?.Invoke(winner);
         
         Debug.Log($"ゲーム終了！勝者: {winner.playerName} (勝利点: {winner.GetVictoryPoints()})");
+    }
+    
+    private void CalculateFinalScores()
+    {
+        foreach (Player player in players)
+        {
+            int totalScore = 0;
+            
+            // 家族メンバー：1人につき3点
+            totalScore += player.GetFamilyMembers() * 3;
+            
+            // 住居の種類：木0点、土1点、石2点（1部屋につき）
+            int houseScore = 0;
+            switch (player.GetHouseType())
+            {
+                case Player.HouseType.Wood: houseScore = 0; break;
+                case Player.HouseType.Clay: houseScore = 1; break;
+                case Player.HouseType.Stone: houseScore = 2; break;
+            }
+            totalScore += houseScore * player.GetRooms();
+            
+            // 畑の点数（0-1: -1点, 2: 1点, 3: 2点, 4: 3点, 5+: 4点）
+            totalScore += CalculateCategoryScore(player.GetFields());
+            
+            // 牧場の点数
+            totalScore += CalculateCategoryScore(player.GetPastures());
+            
+            // 穀物の点数
+            totalScore += CalculateCategoryScore(player.GetResource(ResourceType.Grain));
+            
+            // 野菜の点数
+            totalScore += CalculateCategoryScore(player.GetResource(ResourceType.Vegetable));
+            
+            // 羊の点数
+            totalScore += CalculateCategoryScore(player.GetResource(ResourceType.Sheep));
+            
+            // 猪の点数
+            totalScore += CalculateCategoryScore(player.GetResource(ResourceType.Boar));
+            
+            // 牛の点数
+            totalScore += CalculateCategoryScore(player.GetResource(ResourceType.Cattle));
+            
+            // 乞食カードのペナルティ：1枚につき-3点
+            if (beggingCards.ContainsKey(player))
+            {
+                totalScore -= beggingCards[player] * 3;
+            }
+            
+            // プレイしたカードからの点数
+            foreach (Card card in player.GetPlayedCards())
+            {
+                totalScore += card.victoryPoints;
+            }
+            
+            player.SetVictoryPoints(totalScore);
+            
+            Debug.Log($"{player.playerName}の最終スコア: {totalScore}点");
+        }
+    }
+    
+    private int CalculateCategoryScore(int amount)
+    {
+        // Agricolaのスコアリング表に基づく
+        if (amount == 0) return -1;
+        if (amount == 1) return -1;
+        if (amount == 2) return 1;
+        if (amount == 3) return 2;
+        if (amount == 4) return 3;
+        return 4; // 5以上
     }
     
     public void OnActionSpaceClicked(ActionSpace actionSpace)

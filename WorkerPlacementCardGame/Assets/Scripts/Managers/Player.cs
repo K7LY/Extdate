@@ -13,10 +13,22 @@ public class Player : MonoBehaviour
     [Header("リソース")]
     [SerializeField] private Dictionary<ResourceType, int> resources = new Dictionary<ResourceType, int>();
     
-    [Header("ワーカー")]
-    public int totalWorkers = 4;
+    [Header("家族（ワーカー）")]
+    public int maxFamilyMembers = 5;
+    [SerializeField] private int familyMembers = 2; // 初期は夫婦2人
     [SerializeField] private int availableWorkers;
     [SerializeField] private List<Worker> placedWorkers = new List<Worker>();
+    
+    [Header("住居")]
+    public enum HouseType { Wood, Clay, Stone }
+    [SerializeField] private HouseType houseType = HouseType.Wood;
+    [SerializeField] private int rooms = 2; // 初期は2部屋
+    
+    [Header("農場")]
+    [SerializeField] private int fields = 0;        // 畑の数
+    [SerializeField] private int pastures = 0;      // 牧場の数
+    [SerializeField] private int fences = 0;        // 柵の数
+    [SerializeField] private int stables = 0;       // 小屋の数
     
     [Header("カード")]
     [SerializeField] private List<Card> hand = new List<Card>();
@@ -33,16 +45,22 @@ public class Player : MonoBehaviour
     void Start()
     {
         InitializeResources();
-        availableWorkers = totalWorkers;
+        availableWorkers = familyMembers;
     }
     
     private void InitializeResources()
     {
-        resources[ResourceType.Wood] = 2;
-        resources[ResourceType.Stone] = 2;
-        resources[ResourceType.Food] = 3;
-        resources[ResourceType.Gold] = 1;
-        resources[ResourceType.Workers] = totalWorkers;
+        // Agricola風の初期リソース
+        resources[ResourceType.Wood] = 0;
+        resources[ResourceType.Clay] = 0;
+        resources[ResourceType.Reed] = 0;
+        resources[ResourceType.Stone] = 0;
+        resources[ResourceType.Grain] = 0;
+        resources[ResourceType.Vegetable] = 0;
+        resources[ResourceType.Sheep] = 0;
+        resources[ResourceType.Boar] = 0;
+        resources[ResourceType.Cattle] = 0;
+        resources[ResourceType.Food] = 0;
     }
     
     // リソース管理
@@ -104,7 +122,132 @@ public class Player : MonoBehaviour
             Destroy(worker.gameObject);
         }
         placedWorkers.Clear();
-        availableWorkers = totalWorkers;
+        availableWorkers = familyMembers;
+    }
+    
+    // 家族の成長
+    public bool GrowFamily()
+    {
+        if (familyMembers < maxFamilyMembers && familyMembers < rooms)
+        {
+            familyMembers++;
+            availableWorkers = familyMembers;
+            return true;
+        }
+        return false;
+    }
+    
+    // 住居の拡張
+    public bool ExpandHouse(int newRooms, ResourceType material)
+    {
+        int materialCost = newRooms * rooms; // 現在の部屋数 × 新しい部屋数
+        int reedCost = newRooms;
+        
+        if (GetResource(material) >= materialCost && GetResource(ResourceType.Reed) >= reedCost)
+        {
+            SpendResource(material, materialCost);
+            SpendResource(ResourceType.Reed, reedCost);
+            rooms += newRooms;
+            return true;
+        }
+        return false;
+    }
+    
+    // 住居の改築
+    public bool RenovateHouse(HouseType newType)
+    {
+        if ((int)newType <= (int)houseType) return false;
+        
+        ResourceType material = houseType == HouseType.Wood ? ResourceType.Clay : ResourceType.Stone;
+        int materialCost = rooms;
+        int reedCost = 1;
+        
+        if (GetResource(material) >= materialCost && GetResource(ResourceType.Reed) >= reedCost)
+        {
+            SpendResource(material, materialCost);
+            SpendResource(ResourceType.Reed, reedCost);
+            houseType = newType;
+            return true;
+        }
+        return false;
+    }
+    
+    // 畑の追加
+    public bool AddField()
+    {
+        fields++;
+        return true; // Agricolaでは畑の追加は無料
+    }
+    
+    // 種まき
+    public bool SowGrain(int amount)
+    {
+        if (GetResource(ResourceType.Grain) >= amount && fields > 0)
+        {
+            SpendResource(ResourceType.Grain, amount);
+            // 畑に穀物を配置（実装は簡略化）
+            return true;
+        }
+        return false;
+    }
+    
+    // 収穫
+    public void HarvestCrops()
+    {
+        // 簡略化：畑の数だけ穀物を獲得
+        if (fields > 0)
+        {
+            AddResource(ResourceType.Grain, fields);
+        }
+    }
+    
+    // 動物の飼育
+    public bool CanHouseAnimals(ResourceType animalType, int count)
+    {
+        // 簡略化：牧場と小屋で動物を飼育可能
+        int capacity = pastures * 2 + stables; // 牧場1つにつき2匹、小屋1つにつき1匹
+        int currentAnimals = GetResource(ResourceType.Sheep) + GetResource(ResourceType.Boar) + GetResource(ResourceType.Cattle);
+        
+        return currentAnimals + count <= capacity;
+    }
+    
+    // 動物の繁殖
+    public void BreedAnimals()
+    {
+        // 各動物種で2匹以上いれば1匹増える
+        if (GetResource(ResourceType.Sheep) >= 2 && CanHouseAnimals(ResourceType.Sheep, 1))
+            AddResource(ResourceType.Sheep, 1);
+            
+        if (GetResource(ResourceType.Boar) >= 2 && CanHouseAnimals(ResourceType.Boar, 1))
+            AddResource(ResourceType.Boar, 1);
+            
+        if (GetResource(ResourceType.Cattle) >= 2 && CanHouseAnimals(ResourceType.Cattle, 1))
+            AddResource(ResourceType.Cattle, 1);
+    }
+    
+    // 食料の必要量を計算
+    public int GetFoodNeeded()
+    {
+        return familyMembers * 2; // 1人につき2食料
+    }
+    
+    // 餌やり
+    public int FeedFamily()
+    {
+        int needed = GetFoodNeeded();
+        int available = GetResource(ResourceType.Food);
+        
+        if (available >= needed)
+        {
+            SpendResource(ResourceType.Food, needed);
+            return 0; // 乞食カードなし
+        }
+        else
+        {
+            if (available > 0)
+                SpendResource(ResourceType.Food, available);
+            return needed - available; // 不足分が乞食カードの数
+        }
     }
     
     private Worker CreateWorker()
@@ -163,9 +306,41 @@ public class Player : MonoBehaviour
         OnVictoryPointsChanged?.Invoke(victoryPoints);
     }
     
+    public void SetVictoryPoints(int points)
+    {
+        victoryPoints = points;
+        OnVictoryPointsChanged?.Invoke(victoryPoints);
+    }
+    
+    public List<Card> GetPlayedCards()
+    {
+        return new List<Card>(playedCards);
+    }
+    
     // ターン終了処理
     public void EndTurn()
     {
         // 必要に応じてターン終了時の処理を追加
+    }
+    
+    // Getter methods for Agricola-style properties
+    public int GetFamilyMembers() => familyMembers;
+    public int GetRooms() => rooms;
+    public HouseType GetHouseType() => houseType;
+    public int GetFields() => fields;
+    public int GetPastures() => pastures;
+    public int GetFences() => fences;
+    public int GetStables() => stables;
+    
+    public void AddFences(int count) 
+    { 
+        fences += count; 
+        // 柵3つで牧場1つとして計算（簡略化）
+        pastures = fences / 3;
+    }
+    
+    public void AddStables(int count) 
+    { 
+        stables += count; 
     }
 }

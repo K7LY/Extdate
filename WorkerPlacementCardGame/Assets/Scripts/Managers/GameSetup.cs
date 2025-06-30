@@ -86,27 +86,57 @@ public class GameSetup : MonoBehaviour
             gameBoard = boardObj.transform;
         }
         
-        // 木材採取場所
-        CreateActionSpace("森", ActionType.GainResources, new Vector3(-3, 1, 0), 
-            new Dictionary<ResourceType, int> { { ResourceType.Wood, 1 } });
+        // 初期アクションスペース（常時利用可能）
+        CreateActionSpace("森", ActionType.GainResources, new Vector3(-4, 2, 0), 
+            new Dictionary<ResourceType, int> { { ResourceType.Wood, 3 } });
         
-        // 採石場
-        CreateActionSpace("採石場", ActionType.GainResources, new Vector3(-1, 1, 0), 
-            new Dictionary<ResourceType, int> { { ResourceType.Stone, 1 } });
+        CreateActionSpace("土取り場", ActionType.GainResources, new Vector3(-2, 2, 0), 
+            new Dictionary<ResourceType, int> { { ResourceType.Clay, 1 } });
         
-        // 農場
-        CreateActionSpace("農場", ActionType.GainResources, new Vector3(1, 1, 0), 
+        CreateActionSpace("葦の沼", ActionType.GainResources, new Vector3(0, 2, 0), 
+            new Dictionary<ResourceType, int> { { ResourceType.Reed, 1 } });
+        
+        CreateActionSpace("漁場", ActionType.GainResources, new Vector3(2, 2, 0), 
+            new Dictionary<ResourceType, int> { { ResourceType.Food, 1 } });
+        
+        CreateActionSpace("日雇い労働者", ActionType.GainResources, new Vector3(4, 2, 0), 
             new Dictionary<ResourceType, int> { { ResourceType.Food, 2 } });
         
-        // 市場
-        CreateActionSpace("市場", ActionType.Trade, new Vector3(3, 1, 0), 
-            new Dictionary<ResourceType, int> { { ResourceType.Gold, 1 } });
+        CreateActionSpace("穀物の種", ActionType.GainResources, new Vector3(-3, 0, 0), 
+            new Dictionary<ResourceType, int> { { ResourceType.Grain, 1 } });
         
-        // カード獲得場所
-        CreateActionSpace("図書館", ActionType.DrawCards, new Vector3(0, -1, 0), 
-            new Dictionary<ResourceType, int>(), 2);
+        CreateActionSpace("畑を耕す", ActionType.AddField, new Vector3(-1, 0, 0), 
+            new Dictionary<ResourceType, int>());
         
-        Debug.Log("サンプルアクションスペースを作成しました");
+        CreateActionSpace("スタートプレイヤー", ActionType.StartingPlayer, new Vector3(1, 0, 0), 
+            new Dictionary<ResourceType, int>());
+        
+        CreateActionSpace("住居の拡張", ActionType.HouseExpansion, new Vector3(3, 0, 0), 
+            new Dictionary<ResourceType, int>());
+        
+        // 後から追加されるアクションスペース（段階的に解放）
+        CreateActionSpace("柵の建設", ActionType.BuildFences, new Vector3(-3, -2, 0), 
+            new Dictionary<ResourceType, int>());
+        
+        CreateActionSpace("羊市場", ActionType.TakeAnimals, new Vector3(-1, -2, 0), 
+            new Dictionary<ResourceType, int> { { ResourceType.Sheep, 1 } });
+        
+        CreateActionSpace("種まきと製パン", ActionType.SowGrain, new Vector3(1, -2, 0), 
+            new Dictionary<ResourceType, int>());
+        
+        CreateActionSpace("家族の成長", ActionType.FamilyGrowth, new Vector3(3, -2, 0), 
+            new Dictionary<ResourceType, int>());
+        
+        CreateActionSpace("住居の改築", ActionType.HouseRenovation, new Vector3(-2, -4, 0), 
+            new Dictionary<ResourceType, int>());
+        
+        CreateActionSpace("猪市場", ActionType.TakeAnimals, new Vector3(0, -4, 0), 
+            new Dictionary<ResourceType, int> { { ResourceType.Boar, 1 } });
+        
+        CreateActionSpace("牛市場", ActionType.TakeAnimals, new Vector3(2, -4, 0), 
+            new Dictionary<ResourceType, int> { { ResourceType.Cattle, 1 } });
+        
+        Debug.Log("Agricola風アクションスペースを作成しました");
     }
     
     private void CreateActionSpace(string name, ActionType actionType, Vector3 position, 
@@ -245,10 +275,15 @@ public class GameSetup : MonoBehaviour
         switch (resourceType)
         {
             case ResourceType.Wood: return "木材";
-            case ResourceType.Stone: return "石材";
+            case ResourceType.Clay: return "土";
+            case ResourceType.Reed: return "葦";
+            case ResourceType.Stone: return "石";
+            case ResourceType.Grain: return "穀物";
+            case ResourceType.Vegetable: return "野菜";
+            case ResourceType.Sheep: return "羊";
+            case ResourceType.Boar: return "猪";
+            case ResourceType.Cattle: return "牛";
             case ResourceType.Food: return "食料";
-            case ResourceType.Gold: return "金貨";
-            case ResourceType.Workers: return "ワーカー";
             default: return resourceType.ToString();
         }
     }

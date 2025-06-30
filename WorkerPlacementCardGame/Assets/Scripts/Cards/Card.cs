@@ -4,20 +4,25 @@ using System.Collections.Generic;
 [System.Serializable]
 public enum CardType
 {
-    Action,
-    Building,
-    Worker,
-    Resource
+    Occupation,      // 職業カード
+    MinorImprovement, // 小さな進歩
+    MajorImprovement, // 大きな進歩
+    Action           // アクションカード
 }
 
 [System.Serializable]
 public enum ResourceType
 {
     Wood,
+    Clay,
+    Reed,
     Stone,
-    Food,
-    Gold,
-    Workers
+    Grain,
+    Vegetable,
+    Sheep,
+    Boar,
+    Cattle,
+    Food // 調理済み食料
 }
 
 [CreateAssetMenu(fileName = "New Card", menuName = "Card Game/Card")]

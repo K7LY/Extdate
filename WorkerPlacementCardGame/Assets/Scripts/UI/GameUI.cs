@@ -337,10 +337,15 @@ public class ResourceDisplayUI : MonoBehaviour
         switch (resourceType)
         {
             case ResourceType.Wood: return "木材";
-            case ResourceType.Stone: return "石材";
+            case ResourceType.Clay: return "土";
+            case ResourceType.Reed: return "葦";
+            case ResourceType.Stone: return "石";
+            case ResourceType.Grain: return "穀物";
+            case ResourceType.Vegetable: return "野菜";
+            case ResourceType.Sheep: return "羊";
+            case ResourceType.Boar: return "猪";
+            case ResourceType.Cattle: return "牛";
             case ResourceType.Food: return "食料";
-            case ResourceType.Gold: return "金貨";
-            case ResourceType.Workers: return "ワーカー";
             default: return resourceType.ToString();
         }
     }
