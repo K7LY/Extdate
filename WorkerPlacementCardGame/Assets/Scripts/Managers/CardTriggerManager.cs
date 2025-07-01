@@ -284,4 +284,54 @@ public class CardTriggerManager : MonoBehaviour
         
         Debug.Log($"総数: {triggerableCards.Count}個（実行可能: {triggerableCards.Count(tc => tc.canTrigger)}個）");
     }
+    
+    /// <summary>
+    /// 新しく追加されたカードのトリガー可能な効果を確認し、ログに出力
+    /// </summary>
+    public void AnalyzeNewCard(EnhancedCard card, Player owner)
+    {
+        Debug.Log($"=== 新しいカード「{card.cardName}」の効果分析 ===");
+        
+        foreach (var effect in card.effects)
+        {
+            EventContext context = new EventContext(effect.triggerType, owner);
+            bool canTrigger = CanTriggerEffect(card, effect, owner, context);
+            string reason = GetTriggerReason(card, effect, owner, context, canTrigger);
+            
+            string status = canTrigger ? "[利用可能]" : "[条件待ち]";
+            Debug.Log($"{status} {effect.triggerType}トリガー: {effect.effectDescription} ({reason})");
+        }
+    }
+    
+    /// <summary>
+    /// 全プレイヤーの現在のトリガー可能カード状況をサマリー表示
+    /// </summary>
+    public void DebugPrintTriggerSummary()
+    {
+        if (gameManager == null) return;
+        
+        Debug.Log("=== 全プレイヤーのトリガー可能カード サマリー ===");
+        
+        foreach (Player player in gameManager.GetPlayers())
+        {
+            List<EnhancedCard> enhancedCards = GetEnhancedCardsFromPlayer(player);
+            int totalEffects = 0;
+            int availableEffects = 0;
+            
+            foreach (EnhancedCard card in enhancedCards)
+            {
+                foreach (var effect in card.effects)
+                {
+                    totalEffects++;
+                    EventContext context = new EventContext(effect.triggerType, player);
+                    if (CanTriggerEffect(card, effect, player, context))
+                    {
+                        availableEffects++;
+                    }
+                }
+            }
+            
+            Debug.Log($"🎮 {player.playerName}: {enhancedCards.Count}枚のカード, {totalEffects}個の効果 (利用可能: {availableEffects}個)");
+        }
+    }
 }

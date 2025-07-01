@@ -515,4 +515,23 @@ public class GameManager : MonoBehaviour
         
         cardTriggerManager.DebugPrintTriggerableCards(triggerType, context);
     }
+    
+    /// <summary>
+    /// 全プレイヤーのトリガー可能カード状況をサマリー表示
+    /// </summary>
+    public void DebugPrintTriggerSummary()
+    {
+        if (cardTriggerManager != null)
+        {
+            cardTriggerManager.DebugPrintTriggerSummary();
+        }
+    }
+    
+    /// <summary>
+    /// CardTriggerManagerへの直接アクセス（上級者向け）
+    /// </summary>
+    public CardTriggerManager GetCardTriggerManager()
+    {
+        return cardTriggerManager;
+    }
 }

@@ -321,10 +321,57 @@ public class Player : MonoBehaviour
             hand.Remove(card);
             playedCards.Add(card);
             
+            // カードの効果を実行（EnhancedCardの場合）
+            if (card is EnhancedCard enhancedCard)
+            {
+                enhancedCard.PlayCard(this);
+                
+                // GameManagerのCardTriggerManagerに新しいカードを通知
+                GameManager gameManager = FindObjectOfType<GameManager>();
+                if (gameManager != null)
+                {
+                    // 即座トリガー以外の効果をトリガー可能一覧に追加
+                    RegisterCardEffectsToTriggerManager(enhancedCard, gameManager);
+                }
+            }
+            
             OnCardPlayed?.Invoke(card);
             return true;
         }
         return false;
+    }
+    
+    /// <summary>
+    /// カードの効果をCardTriggerManagerに登録
+    /// </summary>
+    private void RegisterCardEffectsToTriggerManager(EnhancedCard card, GameManager gameManager)
+    {
+        // CardTriggerManagerを取得
+        CardTriggerManager triggerManager = gameManager.GetComponent<CardTriggerManager>();
+        if (triggerManager == null)
+        {
+            triggerManager = FindObjectOfType<CardTriggerManager>();
+        }
+        
+        if (triggerManager != null)
+        {
+            // 新しいカードの効果を詳細分析
+            triggerManager.AnalyzeNewCard(card, this);
+            
+            // トリガー可能カード一覧の更新をログ出力
+            Debug.Log($"{playerName}が「{card.cardName}」を獲得。トリガー可能カード一覧が更新されました。");
+        }
+        else
+        {
+            // フォールバック：基本的なログ出力
+            foreach (var effect in card.effects)
+            {
+                if (effect.triggerType != OccupationTrigger.Immediate)
+                {
+                    Debug.Log($"カード「{card.cardName}」の{effect.triggerType}トリガー効果「{effect.effectDescription}」がトリガー可能一覧に追加されました");
+                }
+            }
+        }
     }
     
     public void DrawCards(int count)
@@ -417,6 +464,16 @@ public class Player : MonoBehaviour
         {
             occupations.Add(occupation);
             Debug.Log($"{playerName}が職業「{occupation.cardName}」を獲得しました");
+            
+            // EnhancedCardの場合、トリガー可能一覧に追加
+            if (occupation is EnhancedCard enhancedOccupation)
+            {
+                GameManager gameManager = FindObjectOfType<GameManager>();
+                if (gameManager != null)
+                {
+                    RegisterCardEffectsToTriggerManager(enhancedOccupation, gameManager);
+                }
+            }
         }
     }
     
@@ -442,6 +499,16 @@ public class Player : MonoBehaviour
         {
             improvements.Add(improvement);
             Debug.Log($"{playerName}が進歩「{improvement.cardName}」を獲得しました");
+            
+            // EnhancedCardの場合、トリガー可能一覧に追加
+            if (improvement is EnhancedCard enhancedImprovement)
+            {
+                GameManager gameManager = FindObjectOfType<GameManager>();
+                if (gameManager != null)
+                {
+                    RegisterCardEffectsToTriggerManager(enhancedImprovement, gameManager);
+                }
+            }
         }
     }
     
