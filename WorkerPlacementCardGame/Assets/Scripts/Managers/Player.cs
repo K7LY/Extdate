@@ -221,6 +221,9 @@ public class Player : MonoBehaviour
         
         // 職業効果のトリガー
         TriggerOccupationEffects(OccupationTrigger.OnHarvest);
+        
+        // 拡張システムの収穫トリガー
+        TriggerCardEffects(OccupationTrigger.OnHarvest);
     }
     
     // 動物の飼育
@@ -248,6 +251,9 @@ public class Player : MonoBehaviour
         
         // 職業効果のトリガー
         TriggerOccupationEffects(OccupationTrigger.OnBreeding);
+        
+        // 拡張システムの繁殖トリガー
+        TriggerCardEffects(OccupationTrigger.OnBreeding);
     }
     
     // 食料の必要量を計算
@@ -540,24 +546,158 @@ public class Player : MonoBehaviour
     // アクション実行時の職業効果トリガー
     public void OnActionExecuted(ActionSpace actionSpace)
     {
+        // 既存システムのトリガー
         TriggerOccupationEffects(OccupationTrigger.OnAction, actionSpace);
+        
+        // 拡張システムのトリガー
+        TriggerCardEffects(OccupationTrigger.OnAction, actionSpace);
     }
     
-    // ターン終了時の処理
-    public override void EndTurn()
+    // 拡張カードシステム用トリガーメソッド
+    public void TriggerCardEffects(OccupationTrigger triggerType, object context = null, string condition = "")
     {
+        // CardTriggerManagerを使用してトリガー実行
+        CardTriggerManager.Instance.ExecutePlayerTrigger(this, triggerType, context, condition);
+    }
+
+    // トリガー可能なカードを検索（検索のみ、実行はしない）
+    public List<TriggerableCard> FindTriggerableCards(OccupationTrigger triggerType, object context = null, string condition = "")
+    {
+        return CardTriggerManager.Instance.FindTriggerableCards(this, triggerType, context, condition);
+    }
+
+    // トリガー可能なカードの情報を取得
+    public string GetTriggerableCardsInfo(OccupationTrigger triggerType, object context = null, string condition = "")
+    {
+        var triggerableCards = FindTriggerableCards(triggerType, context, condition);
+        return CardTriggerManager.Instance.GetTriggerableCardsInfo(triggerableCards);
+    }
+
+    // 拡張カード対応のプレイヤーチェック用メソッド
+    public bool HasOccupationByName(string occupationName)
+    {
+        // 既存システムをチェック
+        bool hasOldSystem = occupations.Any(o => o.cardName == occupationName);
+        
+        // 拡張システムもチェック（EnhancedOccupationCard）
+        bool hasNewSystem = occupations.Any(o => o is EnhancedOccupationCard enhanced && enhanced.cardName == occupationName);
+        
+        return hasOldSystem || hasNewSystem;
+    }
+
+    public bool HasImprovementByName(string improvementName)
+    {
+        // 既存システムをチェック
+        bool hasOldSystem = improvements.Any(i => i.cardName == improvementName);
+        
+        // 拡張システムもチェック（EnhancedImprovementCard）
+        bool hasNewSystem = improvements.Any(i => i is EnhancedImprovementCard enhanced && enhanced.cardName == improvementName);
+        
+        return hasOldSystem || hasNewSystem;
+    }
+
+    public bool HasCardWithTag(string tagName)
+    {
+        // 職業カードのタグをチェック
+        foreach (var occupation in occupations)
+        {
+            if (occupation is EnhancedOccupationCard enhanced && enhanced.HasTag(tagName))
+                return true;
+        }
+        
+        // 進歩カードのタグをチェック
+        foreach (var improvement in improvements)
+        {
+            if (improvement is EnhancedImprovementCard enhanced && enhanced.HasTag(tagName))
+                return true;
+        }
+        
+        return false;
+    }
+
+    // 拡張カード追加メソッド
+    public void AddOccupationCard(EnhancedOccupationCard occupation)
+    {
+        // 基底クラスとして職業リストに追加
+        if (occupation is OccupationCard baseOccupation)
+        {
+            AddOccupation(baseOccupation);
+        }
+    }
+
+    public void AddImprovementCard(EnhancedImprovementCard improvement)
+    {
+        // 基底クラスとして進歩リストに追加
+        if (improvement is ImprovementCard baseImprovement)
+        {
+            AddImprovement(baseImprovement);
+        }
+    }
+
+    // 初期化メソッドを追加
+    public void InitializePlayer(string name, int playerIndex)
+    {
+        playerName = name;
+        InitializeResources();
+        availableWorkers = familyMembers;
+        
+        // 拡張システムのための初期化
+        if (tempBonuses == null) tempBonuses = new Dictionary<string, int>();
+        if (passiveEffects == null) passiveEffects = new List<CardEffect>();
+        if (actionModifiers == null) actionModifiers = new List<CardEffect>();
+        if (cookingAbilities == null) cookingAbilities = new Dictionary<ResourceType, int>();
+        if (storageCapacities == null) storageCapacities = new Dictionary<ResourceType, int>();
+        if (cookingFacilities == null) cookingFacilities = new List<ImprovementCard>();
+        
+        tempBonuses.Clear();
+        passiveEffects.Clear();
+        actionModifiers.Clear();
+        cookingAbilities.Clear();
+        storageCapacities.Clear();
+        cookingFacilities.Clear();
+    }
+
+    // ターン終了時の処理
+    public void EndTurn()
+    {
+        // 既存システムの職業効果トリガー
         TriggerOccupationEffects(OccupationTrigger.OnTurnEnd);
         
+        // 拡張システムのターン終了トリガー
+        TriggerCardEffects(OccupationTrigger.OnTurnEnd);
+        
         // カード効果の使用回数リセット
-        foreach (var effect in passiveEffects)
+        if (passiveEffects != null)
         {
-            effect.ResetUses();
-        }
-        foreach (var effect in actionModifiers)
-        {
-            effect.ResetUses();
+            foreach (var effect in passiveEffects)
+            {
+                effect.ResetUses();
+            }
         }
         
-        base.EndTurn();
+        if (actionModifiers != null)
+        {
+            foreach (var effect in actionModifiers)
+            {
+                effect.ResetUses();
+            }
+        }
+        
+        // 拡張カードシステムの効果リセット
+        foreach (var occupation in occupations)
+        {
+            if (occupation is EnhancedOccupationCard enhanced)
+            {
+                enhanced.ResetAllEffectUses();
+            }
+        }
+        
+        foreach (var improvement in improvements)
+        {
+            if (improvement is EnhancedImprovementCard enhanced)
+            {
+                enhanced.ResetAllEffectUses();
+            }
+        }
     }
 }
