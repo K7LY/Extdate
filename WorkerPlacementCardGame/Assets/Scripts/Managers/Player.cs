@@ -425,6 +425,11 @@ public class Player : MonoBehaviour
         return occupations.Any(o => o.occupationType == type);
     }
     
+    public bool HasOccupationByName(string cardName)
+    {
+        return occupations.Any(o => o.cardName.Equals(cardName, System.StringComparison.OrdinalIgnoreCase));
+    }
+    
     public List<OccupationCard> GetOccupations()
     {
         return new List<OccupationCard>(occupations);
@@ -445,9 +450,40 @@ public class Player : MonoBehaviour
         return improvements.Contains(improvement);
     }
     
+    public bool HasImprovementByName(string cardName)
+    {
+        return improvements.Any(i => i.cardName.Equals(cardName, System.StringComparison.OrdinalIgnoreCase));
+    }
+    
     public List<ImprovementCard> GetImprovements()
     {
         return new List<ImprovementCard>(improvements);
+    }
+    
+    public bool HasCardWithTag(string tagName)
+    {
+        // 職業カードのタグをチェック
+        foreach (var occupation in occupations)
+        {
+            if (occupation is EnhancedCard enhancedOccupation && enhancedOccupation.HasTag(tagName))
+                return true;
+        }
+        
+        // 進歩カードのタグをチェック
+        foreach (var improvement in improvements)
+        {
+            if (improvement is EnhancedCard enhancedImprovement && enhancedImprovement.HasTag(tagName))
+                return true;
+        }
+        
+        // プレイ済みカードのタグをチェック
+        foreach (var card in playedCards)
+        {
+            if (card is EnhancedCard enhancedCard && enhancedCard.HasTag(tagName))
+                return true;
+        }
+        
+        return false;
     }
     
     // カード効果管理
@@ -544,9 +580,16 @@ public class Player : MonoBehaviour
     }
     
     // ターン終了時の処理
-    public override void EndTurn()
+    public void EndTurn()
     {
         TriggerOccupationEffects(OccupationTrigger.OnTurnEnd);
+        
+        // GameManagerのCardTriggerManagerを使用してターン終了時の効果を発動
+        GameManager gameManager = FindObjectOfType<GameManager>();
+        if (gameManager != null)
+        {
+            gameManager.ExecuteAllTriggerableCards(OccupationTrigger.OnTurnEnd, this);
+        }
         
         // カード効果の使用回数リセット
         foreach (var effect in passiveEffects)
@@ -557,7 +600,5 @@ public class Player : MonoBehaviour
         {
             effect.ResetUses();
         }
-        
-        base.EndTurn();
     }
 }
