@@ -48,6 +48,7 @@ public class GameManager : MonoBehaviour
     [Header("システム管理")]
     private ActionSpaceManager actionSpaceManager;
     private ResourceConverter resourceConverter;
+    private CardTriggerManager cardTriggerManager;
     
     // イベント
     public System.Action<GameState> OnGameStateChanged;
@@ -58,6 +59,12 @@ public class GameManager : MonoBehaviour
     
     // 現在のプレイヤー
     public Player CurrentPlayer => players.Count > 0 ? players[currentPlayerIndex] : null;
+    
+    // 全プレイヤーのリストを取得
+    public List<Player> GetPlayers()
+    {
+        return new List<Player>(players);
+    }
     
     void Start()
     {
@@ -101,6 +108,14 @@ public class GameManager : MonoBehaviour
         {
             GameObject converterObj = new GameObject("ResourceConverter");
             resourceConverter = converterObj.AddComponent<ResourceConverter>();
+        }
+        
+        // CardTriggerManager を取得または作成
+        cardTriggerManager = FindObjectOfType<CardTriggerManager>();
+        if (cardTriggerManager == null)
+        {
+            GameObject triggerManagerObj = new GameObject("CardTriggerManager");
+            cardTriggerManager = triggerManagerObj.AddComponent<CardTriggerManager>();
         }
     }
     
@@ -285,6 +300,9 @@ public class GameManager : MonoBehaviour
             // 1. 収穫
             player.HarvestCrops();
             
+            // 収穫時のカード効果を発動
+            ExecuteAllTriggerableCards(OccupationTrigger.OnHarvest, player);
+            
             // 2. 餌やり
             int beggingCardsReceived = player.FeedFamily();
             if (beggingCardsReceived > 0)
@@ -298,6 +316,9 @@ public class GameManager : MonoBehaviour
             
             // 3. 動物の繁殖
             player.BreedAnimals();
+            
+            // 繁殖時のカード効果を発動
+            ExecuteAllTriggerableCards(OccupationTrigger.OnBreeding, player);
         }
     }
     
@@ -397,6 +418,9 @@ public class GameManager : MonoBehaviour
         {
             Debug.Log($"{CurrentPlayer.playerName}が{actionSpace.actionName}にワーカーを配置しました");
             
+            // アクション実行時のカード効果を発動
+            ExecuteAllTriggerableCards(OccupationTrigger.OnAction, CurrentPlayer, actionSpace);
+            
             // ワーカーがなくなった場合、ターン終了
             if (CurrentPlayer.GetAvailableWorkers() == 0)
             {
@@ -429,5 +453,66 @@ public class GameManager : MonoBehaviour
         }
         
         InitializeGame();
+    }
+    
+    // カードトリガー関連メソッド
+    /// <summary>
+    /// 指定されたイベントでトリガー可能なカードの一覧を取得
+    /// </summary>
+    public List<CardTriggerManager.TriggerableCard> GetTriggerableCards(OccupationTrigger triggerType, Player currentPlayer = null, ActionSpace actionSpace = null)
+    {
+        if (cardTriggerManager == null) return new List<CardTriggerManager.TriggerableCard>();
+        
+        var context = new CardTriggerManager.EventContext(triggerType, currentPlayer)
+        {
+            actionSpace = actionSpace
+        };
+        
+        return cardTriggerManager.GetTriggerableCards(triggerType, context);
+    }
+    
+    /// <summary>
+    /// 実際にトリガー可能なカードのみを取得
+    /// </summary>
+    public List<CardTriggerManager.TriggerableCard> GetActiveTriggerableCards(OccupationTrigger triggerType, Player currentPlayer = null, ActionSpace actionSpace = null)
+    {
+        if (cardTriggerManager == null) return new List<CardTriggerManager.TriggerableCard>();
+        
+        var context = new CardTriggerManager.EventContext(triggerType, currentPlayer)
+        {
+            actionSpace = actionSpace
+        };
+        
+        return cardTriggerManager.GetActiveTriggerableCards(triggerType, context);
+    }
+    
+    /// <summary>
+    /// 全てのトリガー可能なカードを実行
+    /// </summary>
+    public void ExecuteAllTriggerableCards(OccupationTrigger triggerType, Player currentPlayer = null, ActionSpace actionSpace = null)
+    {
+        if (cardTriggerManager == null) return;
+        
+        var context = new CardTriggerManager.EventContext(triggerType, currentPlayer)
+        {
+            actionSpace = actionSpace
+        };
+        
+        cardTriggerManager.ExecuteAllTriggerableCards(triggerType, context);
+    }
+    
+    /// <summary>
+    /// トリガー可能なカードの情報をデバッグ出力
+    /// </summary>
+    public void DebugPrintTriggerableCards(OccupationTrigger triggerType, Player currentPlayer = null, ActionSpace actionSpace = null)
+    {
+        if (cardTriggerManager == null) return;
+        
+        var context = new CardTriggerManager.EventContext(triggerType, currentPlayer)
+        {
+            actionSpace = actionSpace
+        };
+        
+        cardTriggerManager.DebugPrintTriggerableCards(triggerType, context);
     }
 }
