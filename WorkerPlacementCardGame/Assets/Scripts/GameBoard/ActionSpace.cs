@@ -6,6 +6,7 @@ public enum ActionType
 {
     GainResources,      // リソース獲得
     AddField,           // 畑追加
+    SowField,           // 種まき（拡張）
     SowGrain,           // 種まき  
     FamilyGrowth,       // 家族の成長
     HouseExpansion,     // 住居拡張
@@ -16,7 +17,9 @@ public enum ActionType
     PlayOccupation,     // 職業カード
     PlayImprovement,    // 改良カード
     StartingPlayer,     // スタートプレイヤー
-    Special             // 特殊アクション
+    TradeResources,     // リソース交換
+    SpecialAction,      // 特殊アクション
+    Special             // 特殊アクション（互換性のため残す）
 }
 
 public class ActionSpace : MonoBehaviour
@@ -30,6 +33,8 @@ public class ActionSpace : MonoBehaviour
     
     [Header("リソース効果")]
     public Dictionary<ResourceType, int> resourceGain = new Dictionary<ResourceType, int>();
+    public List<ResourceReward> resourceRewards = new List<ResourceReward>();
+    public List<ResourceRequirement> resourceRequirements = new List<ResourceRequirement>();
     public int cardsToDraw = 0;
     public int victoryPoints = 0;
     
@@ -130,6 +135,9 @@ public class ActionSpace : MonoBehaviour
             case ActionType.AddField:
                 ExecuteAddField(player);
                 break;
+            case ActionType.SowField:
+                ExecuteSowField(player);
+                break;
             case ActionType.SowGrain:
                 ExecuteSowGrain(player);
                 break;
@@ -160,6 +168,12 @@ public class ActionSpace : MonoBehaviour
             case ActionType.StartingPlayer:
                 ExecuteStartingPlayer(player);
                 break;
+            case ActionType.TradeResources:
+                ExecuteTradeResources(player);
+                break;
+            case ActionType.SpecialAction:
+                ExecuteSpecialAction(player);
+                break;
             case ActionType.Special:
                 ExecuteSpecialAction(player);
                 break;
@@ -174,9 +188,16 @@ public class ActionSpace : MonoBehaviour
     
     private void ExecuteResourceGain(Player player)
     {
+        // 従来の resourceGain システム
         foreach (var resource in resourceGain)
         {
             player.AddResource(resource.Key, resource.Value);
+        }
+        
+        // 新しい resourceRewards システム
+        foreach (var reward in resourceRewards)
+        {
+            player.AddResource(reward.resourceType, reward.amount);
         }
     }
     
@@ -184,6 +205,33 @@ public class ActionSpace : MonoBehaviour
     {
         player.AddField();
         Debug.Log($"{player.playerName}が畑を追加しました");
+    }
+    
+    private void ExecuteSowField(Player player)
+    {
+        // 拡張版種まき：穀物または野菜を選択して種まき
+        int grainSeeds = player.GetResource(ResourceType.Grain);
+        int vegetableSeeds = player.GetResource(ResourceType.Vegetable);
+        int availableFields = player.GetEmptyFields();
+        
+        if (availableFields > 0 && (grainSeeds > 0 || vegetableSeeds > 0))
+        {
+            // 簡易AI: 穀物を優先して種まき
+            if (grainSeeds > 0)
+            {
+                player.SowGrain(1);
+                Debug.Log($"{player.playerName}が穀物の種まきをしました");
+            }
+            else if (vegetableSeeds > 0)
+            {
+                player.SowVegetable(1);
+                Debug.Log($"{player.playerName}が野菜の種まきをしました");
+            }
+        }
+        else
+        {
+            Debug.Log($"{player.playerName}は種まきできません（畑または種が不足）");
+        }
     }
     
     private void ExecuteSowGrain(Player player)
@@ -324,10 +372,36 @@ public class ActionSpace : MonoBehaviour
         }
     }
     
+    private void ExecuteTradeResources(Player player)
+    {
+        // リソース交換（簡易版）
+        Debug.Log($"{player.playerName}がリソースを交換できます");
+        
+        // 基本的な交換例：木材3個→食料2個
+        if (player.GetResource(ResourceType.Wood) >= 3)
+        {
+            player.SpendResource(ResourceType.Wood, 3);
+            player.AddResource(ResourceType.Food, 2);
+            Debug.Log($"{player.playerName}が木材3個を食料2個に交換しました");
+        }
+        // 他の交換パターンも追加可能
+    }
+    
     private void ExecuteSpecialAction(Player player)
     {
-        // 特殊アクション
-        // 継承先で実装するか、設定可能にする
+        // 特殊アクション：アクション名によって動作を決定
+        switch (actionName)
+        {
+            case "収穫の最適化":
+                // 次の収穫で追加ボーナス
+                player.AddTempBonus("harvest_bonus", 1);
+                Debug.Log($"{player.playerName}が収穫最適化効果を得ました");
+                break;
+                
+            default:
+                Debug.Log($"{player.playerName}が特殊アクションを実行しました: {actionName}");
+                break;
+        }
     }
     
     private void UpdateVisual()

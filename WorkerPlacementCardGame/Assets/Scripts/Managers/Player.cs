@@ -191,6 +191,23 @@ public class Player : MonoBehaviour
         return false;
     }
     
+    public bool SowVegetable(int amount)
+    {
+        if (GetResource(ResourceType.Vegetable) >= amount && fields > 0)
+        {
+            SpendResource(ResourceType.Vegetable, amount);
+            // 畑に野菜を配置（実装は簡略化）
+            return true;
+        }
+        return false;
+    }
+    
+    public int GetEmptyFields()
+    {
+        // 簡略化：総畑数を返す（実際には種まき済みの畑を除く必要がある）
+        return fields;
+    }
+    
     // 収穫
     public void HarvestCrops()
     {
@@ -355,5 +372,26 @@ public class Player : MonoBehaviour
     public void AddStables(int count) 
     { 
         stables += count; 
+    }
+    
+    // 一時的ボーナス管理（5人プレイ特殊アクション用）
+    private Dictionary<string, int> tempBonuses = new Dictionary<string, int>();
+    
+    public void AddTempBonus(string bonusType, int amount)
+    {
+        if (!tempBonuses.ContainsKey(bonusType))
+            tempBonuses[bonusType] = 0;
+        tempBonuses[bonusType] += amount;
+    }
+    
+    public int GetTempBonus(string bonusType)
+    {
+        return tempBonuses.ContainsKey(bonusType) ? tempBonuses[bonusType] : 0;
+    }
+    
+    public void ClearTempBonus(string bonusType)
+    {
+        if (tempBonuses.ContainsKey(bonusType))
+            tempBonuses.Remove(bonusType);
     }
 }

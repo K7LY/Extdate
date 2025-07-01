@@ -9,6 +9,7 @@ public class ActionSpaceManager : MonoBehaviour
     
     private List<ActionSpace> allActionSpaces = new List<ActionSpace>();
     private HashSet<ActionSpace> activeActionSpaces = new HashSet<ActionSpace>();
+    private Dictionary<ActionSpace, int> delayedActionSpaces = new Dictionary<ActionSpace, int>();
     
     void Start()
     {
@@ -124,6 +125,19 @@ public class ActionSpaceManager : MonoBehaviour
                 }
             }
         }
+        
+        // 遅延登録されたアクションスペースもチェック
+        var spacesToActivate = delayedActionSpaces.Where(pair => pair.Value == round).ToList();
+        foreach (var pair in spacesToActivate)
+        {
+            ActionSpace space = pair.Key;
+            if (!activeActionSpaces.Contains(space))
+            {
+                space.gameObject.SetActive(true);
+                activeActionSpaces.Add(space);
+                Debug.Log($"  📍 {space.actionName} を解放しました（遅延登録）");
+            }
+        }
     }
     
     public List<ActionSpace> GetActiveActionSpaces()
@@ -175,16 +189,32 @@ public class ActionSpaceManager : MonoBehaviour
         }
     }
     
+    // 遅延アクションスペースの登録
+    public void RegisterDelayedActionSpace(ActionSpace actionSpace, int availableFromRound)
+    {
+        if (!allActionSpaces.Contains(actionSpace))
+        {
+            allActionSpaces.Add(actionSpace);
+        }
+        
+        delayedActionSpaces[actionSpace] = availableFromRound;
+        Debug.Log($"遅延アクションスペース登録: {actionSpace.actionName} (ラウンド{availableFromRound}から)");
+    }
+    
     // デバッグ用：全アクションスペースの状態を表示
     [ContextMenu("Show Action Space Status")]
     public void ShowActionSpaceStatus()
     {
         Debug.Log("=== アクションスペース状態 ===");
-        Debug.Log($"総数: {allActionSpaces.Count}, アクティブ: {activeActionSpaces.Count}");
+        Debug.Log($"総数: {allActionSpaces.Count}, アクティブ: {activeActionSpaces.Count}, 遅延登録: {delayedActionSpaces.Count}");
         
         foreach (ActionSpace space in allActionSpaces)
         {
             string status = activeActionSpaces.Contains(space) ? "🟢 アクティブ" : "🔴 非アクティブ";
+            if (delayedActionSpaces.ContainsKey(space))
+            {
+                status += $" (R{delayedActionSpaces[space]}～)";
+            }
             Debug.Log($"{space.actionName}: {status}");
         }
     }
