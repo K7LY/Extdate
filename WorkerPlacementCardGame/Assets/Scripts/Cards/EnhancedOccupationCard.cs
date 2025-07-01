@@ -38,6 +38,18 @@ public class EnhancedOccupationCard : EnhancedCard
         base.PlayCard(player);
     }
     
+    protected override void RegisterToTriggerManager(Player player)
+    {
+        // 基底クラスの登録処理を呼ぶ
+        base.RegisterToTriggerManager(player);
+        
+        // 職業カード固有の登録処理があれば追加
+        if (CardTriggerManager.Instance != null && CardTriggerManager.Instance.enableDebugLogging)
+        {
+            Debug.Log($"職業カード「{cardName}」({occupationType})がトリガーシステムに登録されました");
+        }
+    }
+    
     protected override bool CheckTriggerCondition(CardEffect effect, Player player, object context)
     {
         // 職業カード固有のトリガー条件をチェック

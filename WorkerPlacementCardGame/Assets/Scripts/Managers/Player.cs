@@ -623,6 +623,12 @@ public class Player : MonoBehaviour
         {
             AddOccupation(baseOccupation);
         }
+        
+        // トリガーシステムに自動登録（PlayCardから呼ばれていない場合のバックアップ）
+        if (CardTriggerManager.Instance != null && CardTriggerManager.Instance.enableAutoRegistration)
+        {
+            CardTriggerManager.Instance.RegisterCard(this, occupation);
+        }
     }
 
     public void AddImprovementCard(EnhancedImprovementCard improvement)
@@ -632,6 +638,64 @@ public class Player : MonoBehaviour
         {
             AddImprovement(baseImprovement);
         }
+        
+        // トリガーシステムに自動登録（PlayCardから呼ばれていない場合のバックアップ）
+        if (CardTriggerManager.Instance != null && CardTriggerManager.Instance.enableAutoRegistration)
+        {
+            CardTriggerManager.Instance.RegisterCard(this, improvement);
+        }
+    }
+    
+    // カード削除メソッド（新規追加）
+    public void RemoveOccupationCard(EnhancedOccupationCard occupation)
+    {
+        if (occupation is OccupationCard baseOccupation)
+        {
+            if (occupations.Remove(baseOccupation))
+            {
+                // トリガーシステムからも削除
+                if (CardTriggerManager.Instance != null)
+                {
+                    CardTriggerManager.Instance.UnregisterCard(this, occupation);
+                }
+                
+                Debug.Log($"{playerName}から職業「{occupation.cardName}」を削除しました");
+            }
+        }
+    }
+    
+    public void RemoveImprovementCard(EnhancedImprovementCard improvement)
+    {
+        if (improvement is ImprovementCard baseImprovement)
+        {
+            if (improvements.Remove(baseImprovement))
+            {
+                // トリガーシステムからも削除
+                if (CardTriggerManager.Instance != null)
+                {
+                    CardTriggerManager.Instance.UnregisterCard(this, improvement);
+                }
+                
+                Debug.Log($"{playerName}から進歩「{improvement.cardName}」を削除しました");
+            }
+        }
+    }
+    
+    // プレイヤー削除時のクリーンアップメソッド
+    public void ClearAllCards()
+    {
+        // トリガーシステムから全カードを削除
+        if (CardTriggerManager.Instance != null)
+        {
+            CardTriggerManager.Instance.UnregisterAllPlayerCards(this);
+        }
+        
+        occupations.Clear();
+        improvements.Clear();
+        hand.Clear();
+        playedCards.Clear();
+        
+        Debug.Log($"{playerName}の全カードをクリアしました");
     }
 
     // 初期化メソッドを追加

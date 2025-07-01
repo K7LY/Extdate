@@ -44,6 +44,14 @@ public class CardTriggerManager : MonoBehaviour
     public int totalTriggersProcessed = 0;
     public int totalEffectsExecuted = 0;
     
+    [Header("自動登録システム")]
+    public bool enableAutoRegistration = true;
+    public int registeredCardsCount = 0;
+    
+    // プレイ済みカードの管理
+    private Dictionary<Player, List<EnhancedCard>> playerCards = new Dictionary<Player, List<EnhancedCard>>();
+    private List<EnhancedCard> allRegisteredCards = new List<EnhancedCard>();
+    
     private static CardTriggerManager instance;
     public static CardTriggerManager Instance
     {
@@ -68,6 +76,7 @@ public class CardTriggerManager : MonoBehaviour
         {
             instance = this;
             DontDestroyOnLoad(gameObject);
+            InitializeCardRegistry();
         }
         else if (instance != this)
         {
@@ -75,11 +84,123 @@ public class CardTriggerManager : MonoBehaviour
         }
     }
     
+    private void InitializeCardRegistry()
+    {
+        playerCards = new Dictionary<Player, List<EnhancedCard>>();
+        allRegisteredCards = new List<EnhancedCard>();
+        registeredCardsCount = 0;
+        LogDebug("カード登録システムを初期化しました");
+    }
+    
+    /// <summary>
+    /// カードを自動登録システムに追加
+    /// </summary>
+    public void RegisterCard(Player player, EnhancedCard card)
+    {
+        if (!enableAutoRegistration) return;
+        
+        if (player == null || card == null)
+        {
+            LogDebug("プレイヤーまたはカードがnullのため、登録をスキップします");
+            return;
+        }
+        
+        // プレイヤーのカードリストを初期化
+        if (!playerCards.ContainsKey(player))
+        {
+            playerCards[player] = new List<EnhancedCard>();
+        }
+        
+        // 重複チェック
+        if (!playerCards[player].Contains(card))
+        {
+            playerCards[player].Add(card);
+            allRegisteredCards.Add(card);
+            registeredCardsCount++;
+            
+            LogDebug($"カード「{card.cardName}」をプレイヤー「{player.playerName}」に自動登録しました");
+        }
+    }
+    
+    /// <summary>
+    /// カードを自動登録システムから削除
+    /// </summary>
+    public void UnregisterCard(Player player, EnhancedCard card)
+    {
+        if (player == null || card == null) return;
+        
+        if (playerCards.ContainsKey(player))
+        {
+            if (playerCards[player].Remove(card))
+            {
+                allRegisteredCards.Remove(card);
+                registeredCardsCount--;
+                LogDebug($"カード「{card.cardName}」をプレイヤー「{player.playerName}」から削除しました");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// プレイヤーの全カードを削除
+    /// </summary>
+    public void UnregisterAllPlayerCards(Player player)
+    {
+        if (playerCards.ContainsKey(player))
+        {
+            var playerCardList = playerCards[player];
+            foreach (var card in playerCardList)
+            {
+                allRegisteredCards.Remove(card);
+                registeredCardsCount--;
+            }
+            playerCards[player].Clear();
+            LogDebug($"プレイヤー「{player.playerName}」の全カードを削除しました");
+        }
+    }
+    
+    /// <summary>
+    /// 登録済みカードから検索（高速版）
+    /// </summary>
+    public List<TriggerableCard> FindTriggerableCardsFromRegistry(Player player, OccupationTrigger triggerType, object context = null, string condition = "")
+    {
+        var triggerableCards = new List<TriggerableCard>();
+        
+        if (player == null)
+        {
+            LogDebug("プレイヤーがnullのため、登録済みカード検索をスキップします");
+            return triggerableCards;
+        }
+        
+        // 登録済みカードから検索
+        if (playerCards.ContainsKey(player))
+        {
+            foreach (var card in playerCards[player])
+            {
+                var triggerableEffects = GetTriggerableEffects(card, triggerType, player, context, condition);
+                if (triggerableEffects.Count > 0)
+                {
+                    triggerableCards.Add(new TriggerableCard(card, triggerableEffects, player));
+                }
+            }
+        }
+        
+        LogDebug($"登録済みカードから プレイヤー{player.playerName}で{triggerType}トリガーに該当するカード: {triggerableCards.Count}枚");
+        
+        return triggerableCards;
+    }
+    
     /// <summary>
     /// 指定されたプレイヤーの全カードから、特定トリガーで発動可能なカードを検索
     /// </summary>
     public List<TriggerableCard> FindTriggerableCards(Player player, OccupationTrigger triggerType, object context = null, string condition = "")
     {
+        // 登録システムが有効な場合は高速検索を使用
+        if (enableAutoRegistration)
+        {
+            return FindTriggerableCardsFromRegistry(player, triggerType, context, condition);
+        }
+        
+        // 従来の検索方法（登録システム無効時）
         var triggerableCards = new List<TriggerableCard>();
         
         if (player == null)
@@ -367,6 +488,47 @@ public class CardTriggerManager : MonoBehaviour
     {
         totalTriggersProcessed = 0;
         totalEffectsExecuted = 0;
+    }
+    
+    /// <summary>
+    /// 登録システムの統計情報を取得
+    /// </summary>
+    public string GetRegistrationStatistics()
+    {
+        var stats = $"=== カード登録システム統計 ===\n";
+        stats += $"自動登録: {(enableAutoRegistration ? "有効" : "無効")}\n";
+        stats += $"登録済みカード総数: {registeredCardsCount}\n";
+        stats += $"登録プレイヤー数: {playerCards.Count}\n";
+        
+        foreach (var kvp in playerCards)
+        {
+            stats += $"- {kvp.Key.playerName}: {kvp.Value.Count}枚\n";
+        }
+        
+        return stats;
+    }
+    
+    /// <summary>
+    /// 登録システムをクリア
+    /// </summary>
+    public void ClearRegistrationSystem()
+    {
+        playerCards.Clear();
+        allRegisteredCards.Clear();
+        registeredCardsCount = 0;
+        LogDebug("登録システムをクリアしました");
+    }
+    
+    /// <summary>
+    /// プレイヤーの登録済みカード一覧を取得
+    /// </summary>
+    public List<EnhancedCard> GetRegisteredCards(Player player)
+    {
+        if (playerCards.ContainsKey(player))
+        {
+            return new List<EnhancedCard>(playerCards[player]);
+        }
+        return new List<EnhancedCard>();
     }
     
     /// <summary>

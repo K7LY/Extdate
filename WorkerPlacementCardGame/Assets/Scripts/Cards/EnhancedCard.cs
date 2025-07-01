@@ -218,7 +218,32 @@ public abstract class EnhancedCard : ScriptableObject
         // 効果を適用
         ApplyCardEffects(player);
         
+        // CardTriggerManagerに自動登録
+        RegisterToTriggerManager(player);
+        
         Debug.Log($"{player.playerName}が「{cardName}」をプレイしました");
+    }
+    
+    /// <summary>
+    /// CardTriggerManagerに自動登録
+    /// </summary>
+    protected virtual void RegisterToTriggerManager(Player player)
+    {
+        if (CardTriggerManager.Instance != null)
+        {
+            CardTriggerManager.Instance.RegisterCard(player, this);
+        }
+    }
+    
+    /// <summary>
+    /// CardTriggerManagerから自動削除
+    /// </summary>
+    protected virtual void UnregisterFromTriggerManager(Player player)
+    {
+        if (CardTriggerManager.Instance != null)
+        {
+            CardTriggerManager.Instance.UnregisterCard(player, this);
+        }
     }
     
     protected virtual void ApplyCardEffects(Player player)

@@ -101,6 +101,18 @@ public class EnhancedImprovementCard : EnhancedCard
         base.PlayCard(player);
     }
     
+    protected override void RegisterToTriggerManager(Player player)
+    {
+        // 基底クラスの登録処理を呼ぶ
+        base.RegisterToTriggerManager(player);
+        
+        // 進歩カード固有の登録処理があれば追加
+        if (CardTriggerManager.Instance != null && CardTriggerManager.Instance.enableDebugLogging)
+        {
+            Debug.Log($"進歩カード「{cardName}」({category} - {improvementType})がトリガーシステムに登録されました");
+        }
+    }
+    
     private void AddCookingFacilityToPlayer(Player player)
     {
         player.AddCookingFacility(this);
