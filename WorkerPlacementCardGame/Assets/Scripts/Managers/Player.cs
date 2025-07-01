@@ -33,6 +33,8 @@ public class Player : MonoBehaviour
     [Header("カード")]
     [SerializeField] private List<Card> hand = new List<Card>();
     [SerializeField] private List<Card> playedCards = new List<Card>();
+    [SerializeField] private List<OccupationCard> occupations = new List<OccupationCard>();
+    [SerializeField] private List<ImprovementCard> improvements = new List<ImprovementCard>();
     
     [Header("勝利点")]
     [SerializeField] private int victoryPoints = 0;
@@ -216,6 +218,9 @@ public class Player : MonoBehaviour
         {
             AddResource(ResourceType.Grain, fields);
         }
+        
+        // 職業効果のトリガー
+        TriggerOccupationEffects(OccupationTrigger.OnHarvest);
     }
     
     // 動物の飼育
@@ -240,6 +245,9 @@ public class Player : MonoBehaviour
             
         if (GetResource(ResourceType.Cattle) >= 2 && CanHouseAnimals(ResourceType.Cattle, 1))
             AddResource(ResourceType.Cattle, 1);
+        
+        // 職業効果のトリガー
+        TriggerOccupationEffects(OccupationTrigger.OnBreeding);
     }
     
     // 食料の必要量を計算
@@ -377,6 +385,13 @@ public class Player : MonoBehaviour
     // 一時的ボーナス管理（5人プレイ特殊アクション用）
     private Dictionary<string, int> tempBonuses = new Dictionary<string, int>();
     
+    // カード効果管理
+    private List<CardEffect> passiveEffects = new List<CardEffect>();
+    private List<CardEffect> actionModifiers = new List<CardEffect>();
+    private Dictionary<ResourceType, int> cookingAbilities = new Dictionary<ResourceType, int>();
+    private Dictionary<ResourceType, int> storageCapacities = new Dictionary<ResourceType, int>();
+    private List<ImprovementCard> cookingFacilities = new List<ImprovementCard>();
+    
     public void AddTempBonus(string bonusType, int amount)
     {
         if (!tempBonuses.ContainsKey(bonusType))
@@ -393,5 +408,156 @@ public class Player : MonoBehaviour
     {
         if (tempBonuses.ContainsKey(bonusType))
             tempBonuses.Remove(bonusType);
+    }
+    
+    // 職業カード管理
+    public void AddOccupation(OccupationCard occupation)
+    {
+        if (!occupations.Contains(occupation))
+        {
+            occupations.Add(occupation);
+            Debug.Log($"{playerName}が職業「{occupation.cardName}」を獲得しました");
+        }
+    }
+    
+    public bool HasOccupation(OccupationType type)
+    {
+        return occupations.Any(o => o.occupationType == type);
+    }
+    
+    public List<OccupationCard> GetOccupations()
+    {
+        return new List<OccupationCard>(occupations);
+    }
+    
+    // 進歩カード管理
+    public void AddImprovement(ImprovementCard improvement)
+    {
+        if (!improvements.Contains(improvement))
+        {
+            improvements.Add(improvement);
+            Debug.Log($"{playerName}が進歩「{improvement.cardName}」を獲得しました");
+        }
+    }
+    
+    public bool HasImprovement(ImprovementCard improvement)
+    {
+        return improvements.Contains(improvement);
+    }
+    
+    public List<ImprovementCard> GetImprovements()
+    {
+        return new List<ImprovementCard>(improvements);
+    }
+    
+    // カード効果管理
+    public void AddPassiveEffect(Card source, CardEffect effect)
+    {
+        passiveEffects.Add(effect);
+        Debug.Log($"{playerName}に継続効果「{effect.description}」が追加されました");
+    }
+    
+    public void AddActionModifier(Card source, CardEffect effect)
+    {
+        actionModifiers.Add(effect);
+        Debug.Log($"{playerName}にアクション修正「{effect.description}」が追加されました");
+    }
+    
+    // 料理設備管理
+    public void AddCookingFacility(ImprovementCard facility)
+    {
+        if (!cookingFacilities.Contains(facility))
+        {
+            cookingFacilities.Add(facility);
+        }
+    }
+    
+    public bool HasCookingFacility()
+    {
+        return cookingFacilities.Count > 0;
+    }
+    
+    public void AddCookingAbility(ResourceType resourceType, int conversionRate)
+    {
+        if (!cookingAbilities.ContainsKey(resourceType))
+            cookingAbilities[resourceType] = 0;
+        
+        // より高い変換レートを保持
+        cookingAbilities[resourceType] = Mathf.Max(cookingAbilities[resourceType], conversionRate);
+    }
+    
+    public int GetCookingRate(ResourceType resourceType)
+    {
+        return cookingAbilities.ContainsKey(resourceType) ? cookingAbilities[resourceType] : 0;
+    }
+    
+    // 貯蔵能力管理
+    public void AddStorageCapacity(ResourceType resourceType, int capacity)
+    {
+        if (!storageCapacities.ContainsKey(resourceType))
+            storageCapacities[resourceType] = 0;
+        
+        storageCapacities[resourceType] += capacity;
+    }
+    
+    public int GetStorageCapacity(ResourceType resourceType)
+    {
+        return storageCapacities.ContainsKey(resourceType) ? storageCapacities[resourceType] : 0;
+    }
+    
+    // 追加アクションスペース（進歩カードによる）
+    public void AddAdditionalActionSpaces(int count)
+    {
+        // 実装予定：プレイヤー専用アクションスペースの追加
+        Debug.Log($"{playerName}に追加アクションスペース{count}個が追加されました");
+    }
+    
+    // 料理実行
+    public int CookResource(ResourceType resourceType, int amount)
+    {
+        int conversionRate = GetCookingRate(resourceType);
+        if (conversionRate == 0) return 0;
+        
+        if (GetResource(resourceType) < amount) return 0;
+        
+        SpendResource(resourceType, amount);
+        int foodGained = amount * conversionRate;
+        AddResource(ResourceType.Food, foodGained);
+        
+        Debug.Log($"{playerName}が{resourceType}{amount}個を食料{foodGained}個に調理しました");
+        return foodGained;
+    }
+    
+    // 職業効果トリガー
+    public void TriggerOccupationEffects(OccupationTrigger trigger, object context = null)
+    {
+        foreach (var occupation in occupations)
+        {
+            occupation.TriggerEffect(this, trigger, context);
+        }
+    }
+    
+    // アクション実行時の職業効果トリガー
+    public void OnActionExecuted(ActionSpace actionSpace)
+    {
+        TriggerOccupationEffects(OccupationTrigger.OnAction, actionSpace);
+    }
+    
+    // ターン終了時の処理
+    public override void EndTurn()
+    {
+        TriggerOccupationEffects(OccupationTrigger.OnTurnEnd);
+        
+        // カード効果の使用回数リセット
+        foreach (var effect in passiveEffects)
+        {
+            effect.ResetUses();
+        }
+        foreach (var effect in actionModifiers)
+        {
+            effect.ResetUses();
+        }
+        
+        base.EndTurn();
     }
 }

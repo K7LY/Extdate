@@ -82,6 +82,9 @@ public class ActionSpace : MonoBehaviour
         // アクションを実行
         ExecuteAction(worker.owner);
         
+        // 職業効果のトリガー
+        worker.owner.OnActionExecuted(this);
+        
         UpdateVisual();
         OnWorkerPlaced?.Invoke(worker);
         
