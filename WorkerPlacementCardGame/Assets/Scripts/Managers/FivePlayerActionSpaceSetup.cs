@@ -95,7 +95,7 @@ public class FivePlayerActionSpaceSetup : MonoBehaviour
                 resourceRewards = new Dictionary<ResourceType, int> { { ResourceType.Food, 2 } },
                 description = "食料2個を獲得",
                 isAvailableFromRound = 1,
-                maxWorkers = 2 // 5人プレイでは複数人配置可能
+                maxWorkers = 1 // 基本は1人固定
             },
             
             new ActionSpaceConfig
@@ -140,7 +140,7 @@ public class FivePlayerActionSpaceSetup : MonoBehaviour
                 actionType = ActionType.AddField,
                 description = "畑を1つ追加する",
                 isAvailableFromRound = 3,
-                maxWorkers = 2 // 5人プレイでは需要が高いため複数人可能
+                maxWorkers = 1 // 基本は1人固定
             },
             
             new ActionSpaceConfig
@@ -180,7 +180,7 @@ public class FivePlayerActionSpaceSetup : MonoBehaviour
                 actionType = ActionType.TradeResources,
                 description = "リソースを交換する",
                 isAvailableFromRound = 8,
-                maxWorkers = 2
+                maxWorkers = 1
             },
             
             new ActionSpaceConfig
@@ -199,6 +199,103 @@ public class FivePlayerActionSpaceSetup : MonoBehaviour
                 actionType = ActionType.SpecialAction,
                 description = "次の収穫で追加の収穫物を得る",
                 isAvailableFromRound = 10,
+                maxWorkers = 1
+            },
+            
+            // 5人プレイ用追加アクションスペース
+            new ActionSpaceConfig
+            {
+                actionName = "森の奥地",
+                actionType = ActionType.GainResources,
+                resourceRewards = new Dictionary<ResourceType, int> { { ResourceType.Wood, 1 } },
+                description = "木材1個を獲得",
+                isAvailableFromRound = 1,
+                maxWorkers = 1
+            },
+            
+            new ActionSpaceConfig
+            {
+                actionName = "小川",
+                actionType = ActionType.GainResources,
+                resourceRewards = new Dictionary<ResourceType, int> { { ResourceType.Food, 1 } },
+                description = "食料1個を獲得",
+                isAvailableFromRound = 1,
+                maxWorkers = 1
+            },
+            
+            new ActionSpaceConfig
+            {
+                actionName = "野原",
+                actionType = ActionType.GainResources,
+                resourceRewards = new Dictionary<ResourceType, int> { { ResourceType.Vegetable, 1 } },
+                description = "野菜1個を獲得",
+                isAvailableFromRound = 2,
+                maxWorkers = 1
+            },
+            
+            new ActionSpaceConfig
+            {
+                actionName = "石切り場の端",
+                actionType = ActionType.GainResources,
+                resourceRewards = new Dictionary<ResourceType, int> { { ResourceType.Stone, 1 } },
+                description = "石材1個を獲得",
+                isAvailableFromRound = 3,
+                maxWorkers = 1
+            },
+            
+            new ActionSpaceConfig
+            {
+                actionName = "畑の拡張",
+                actionType = ActionType.AddField,
+                description = "畑を1つ追加する（代替）",
+                isAvailableFromRound = 4,
+                maxWorkers = 1
+            },
+            
+            new ActionSpaceConfig
+            {
+                actionName = "小さな牧場",
+                actionType = ActionType.BuildFences,
+                description = "柵を建設する（代替）",
+                isAvailableFromRound = 5,
+                maxWorkers = 1
+            },
+            
+            new ActionSpaceConfig
+            {
+                actionName = "羊の道",
+                actionType = ActionType.GainResources,
+                resourceRewards = new Dictionary<ResourceType, int> { { ResourceType.Sheep, 1 } },
+                description = "羊1匹を獲得",
+                isAvailableFromRound = 6,
+                maxWorkers = 1
+            },
+            
+            new ActionSpaceConfig
+            {
+                actionName = "穀物収集",
+                actionType = ActionType.GainResources,
+                resourceRewards = new Dictionary<ResourceType, int> { { ResourceType.Grain, 2 } },
+                description = "穀物2個を獲得",
+                isAvailableFromRound = 4,
+                maxWorkers = 1
+            },
+            
+            new ActionSpaceConfig
+            {
+                actionName = "手工業",
+                actionType = ActionType.TradeResources,
+                description = "リソースを食料に変換",
+                isAvailableFromRound = 6,
+                maxWorkers = 1
+            },
+            
+            new ActionSpaceConfig
+            {
+                actionName = "近隣の助け",
+                actionType = ActionType.SpecialAction,
+                description = "小さなリソースボーナスを得る",
+                isAvailableFromRound = 7,
                 maxWorkers = 1
             }
         };
@@ -283,43 +380,13 @@ public class FivePlayerActionSpaceSetup : MonoBehaviour
     {
         Debug.Log("📏 5人プレイ特別ルール適用");
         
-        // 1. 一部のアクションスペースの定員を拡張
-        ExpandActionSpaceCapacity();
-        
-        // 2. 食料供給圧力の軽減
+        // 1. 食料供給圧力の軽減
         AdjustFoodPressure();
         
-        // 3. 追加のスタートプレイヤーメリット
+        // 2. 追加のスタートプレイヤーメリット
         EnhanceStartPlayerBenefits();
-    }
-    
-    void ExpandActionSpaceCapacity()
-    {
-        ActionSpace[] allSpaces = FindObjectsOfType<ActionSpace>();
         
-        foreach (ActionSpace space in allSpaces)
-        {
-            // 特定のアクションスペースの定員を拡張
-            switch (space.actionName)
-            {
-                case "日雇い労働者":
-                case "川での釣り":
-                    space.maxWorkers = 2; // 食料関連は複数人可能に
-                    Debug.Log($"  {space.actionName}: 定員を2人に拡張");
-                    break;
-                    
-                case "畑を耕す":
-                case "開墾":
-                    space.maxWorkers = 2; // 農業関連も複数人可能に
-                    Debug.Log($"  {space.actionName}: 定員を2人に拡張");
-                    break;
-                    
-                case "柵の建設":
-                    space.maxWorkers = 2; // 牧畜準備も複数人可能に
-                    Debug.Log($"  {space.actionName}: 定員を2人に拡張");
-                    break;
-            }
-        }
+        Debug.Log("  注意: 収容人数は基本1人固定（カード効果での例外のみ）");
     }
     
     void AdjustFoodPressure()

@@ -322,8 +322,9 @@ public class FivePlayerGameTest : MonoBehaviour
         int currentSpaces = actionSpaces.Count;
         int totalWorkers = players.Sum(p => p.GetAvailableWorkers());
         
-        // 理想的には総ワーカー数の1.2～1.5倍のアクションスペースが必要
-        int recommendedSpaces = Mathf.RoundToInt(totalWorkers * 1.3f);
+        // 5人プレイでは各アクションが1人制限なので、十分な選択肢が必要
+        // 総ワーカー数の1.5～2.0倍のアクションスペースが理想
+        int recommendedSpaces = Mathf.RoundToInt(totalWorkers * 1.8f);
         
         Debug.Log($"現在のアクションスペース: {currentSpaces}個");
         Debug.Log($"推奨アクションスペース: {recommendedSpaces}個");

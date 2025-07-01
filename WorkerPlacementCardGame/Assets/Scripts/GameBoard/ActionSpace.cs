@@ -374,17 +374,69 @@ public class ActionSpace : MonoBehaviour
     
     private void ExecuteTradeResources(Player player)
     {
-        // リソース交換（簡易版）
-        Debug.Log($"{player.playerName}がリソースを交換できます");
-        
-        // 基本的な交換例：木材3個→食料2個
-        if (player.GetResource(ResourceType.Wood) >= 3)
+        // リソース交換：アクション名によって交換内容を決定
+        switch (actionName)
         {
-            player.SpendResource(ResourceType.Wood, 3);
-            player.AddResource(ResourceType.Food, 2);
-            Debug.Log($"{player.playerName}が木材3個を食料2個に交換しました");
+            case "市場での交易":
+                // 複数の交換オプションから選択（簡易AI）
+                ExecuteMarketTrade(player);
+                break;
+                
+            case "手工業":
+                // 木材や粘土を食料に変換
+                ExecuteCraftingTrade(player);
+                break;
+                
+            default:
+                // 基本的な交換：木材3個→食料2個
+                if (player.GetResource(ResourceType.Wood) >= 3)
+                {
+                    player.SpendResource(ResourceType.Wood, 3);
+                    player.AddResource(ResourceType.Food, 2);
+                    Debug.Log($"{player.playerName}が木材3個を食料2個に交換しました");
+                }
+                break;
         }
-        // 他の交換パターンも追加可能
+    }
+    
+    private void ExecuteMarketTrade(Player player)
+    {
+        Debug.Log($"{player.playerName}が市場で交易します");
+        
+        // 優先順位に基づく交換（簡易AI）
+        if (player.GetResource(ResourceType.Wood) >= 2)
+        {
+            player.SpendResource(ResourceType.Wood, 2);
+            player.AddResource(ResourceType.Food, 2);
+            Debug.Log($"  木材2個 → 食料2個");
+        }
+        else if (player.GetResource(ResourceType.Clay) >= 2)
+        {
+            player.SpendResource(ResourceType.Clay, 2);
+            player.AddResource(ResourceType.Food, 1);
+            Debug.Log($"  粘土2個 → 食料1個");
+        }
+        else
+        {
+            Debug.Log($"  交換可能なリソースがありません");
+        }
+    }
+    
+    private void ExecuteCraftingTrade(Player player)
+    {
+        Debug.Log($"{player.playerName}が手工業を行います");
+        
+        // 手工業：木材1個 → 食料1個（効率的な変換）
+        if (player.GetResource(ResourceType.Wood) >= 1)
+        {
+            player.SpendResource(ResourceType.Wood, 1);
+            player.AddResource(ResourceType.Food, 1);
+            Debug.Log($"  木材1個 → 食料1個");
+        }
+        else
+        {
+            Debug.Log($"  手工業に必要な木材がありません");
+        }
     }
     
     private void ExecuteSpecialAction(Player player)
@@ -396,6 +448,13 @@ public class ActionSpace : MonoBehaviour
                 // 次の収穫で追加ボーナス
                 player.AddTempBonus("harvest_bonus", 1);
                 Debug.Log($"{player.playerName}が収穫最適化効果を得ました");
+                break;
+                
+            case "近隣の助け":
+                // 小さなリソースボーナス（木材1個と食料1個）
+                player.AddResource(ResourceType.Wood, 1);
+                player.AddResource(ResourceType.Food, 1);
+                Debug.Log($"{player.playerName}が近隣の助けを得ました（木材1個、食料1個）");
                 break;
                 
             default:
