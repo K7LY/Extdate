@@ -45,6 +45,10 @@ public class GameManager : MonoBehaviour
     [Header("カードシステム")]
     public CardDeck mainDeck;
     
+    [Header("システム管理")]
+    private ActionSpaceManager actionSpaceManager;
+    private ResourceConverter resourceConverter;
+    
     // イベント
     public System.Action<GameState> OnGameStateChanged;
     public System.Action<TurnPhase> OnTurnPhaseChanged;
@@ -62,6 +66,9 @@ public class GameManager : MonoBehaviour
     
     private void InitializeGame()
     {
+        // システム管理者を初期化
+        InitializeManagers();
+        
         // プレイヤーを設定
         SetupPlayers();
         
@@ -76,6 +83,25 @@ public class GameManager : MonoBehaviour
         
         // ゲーム開始
         StartGame();
+    }
+    
+    private void InitializeManagers()
+    {
+        // ActionSpaceManager を取得または作成
+        actionSpaceManager = FindObjectOfType<ActionSpaceManager>();
+        if (actionSpaceManager == null)
+        {
+            GameObject managerObj = new GameObject("ActionSpaceManager");
+            actionSpaceManager = managerObj.AddComponent<ActionSpaceManager>();
+        }
+        
+        // ResourceConverter を取得または作成
+        resourceConverter = FindObjectOfType<ResourceConverter>();
+        if (resourceConverter == null)
+        {
+            GameObject converterObj = new GameObject("ResourceConverter");
+            resourceConverter = converterObj.AddComponent<ResourceConverter>();
+        }
     }
     
     private void SetupPlayers()
@@ -138,6 +164,17 @@ public class GameManager : MonoBehaviour
     public void StartPlayerTurn()
     {
         ChangeTurnPhase(TurnPhase.PlaceWorkers);
+        
+        // 新ラウンドの場合、アクションスペースを解放・補充
+        if (currentPlayerIndex == 0)
+        {
+            if (actionSpaceManager != null)
+            {
+                actionSpaceManager.ActivateActionSpacesForRound(currentRound);
+                actionSpaceManager.ReplenishActionSpaces();
+            }
+        }
+        
         OnPlayerTurnStart?.Invoke(CurrentPlayer);
         
         // AIプレイヤーの場合、自動的にターンを実行

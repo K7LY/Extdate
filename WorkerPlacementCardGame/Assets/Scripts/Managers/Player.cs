@@ -231,7 +231,7 @@ public class Player : MonoBehaviour
         return familyMembers * 2; // 1人につき2食料
     }
     
-    // 餌やり
+    // 餌やり（リソース変換システム統合）
     public int FeedFamily()
     {
         int needed = GetFoodNeeded();
@@ -244,9 +244,22 @@ public class Player : MonoBehaviour
         }
         else
         {
+            // 利用可能な食料を使用
             if (available > 0)
                 SpendResource(ResourceType.Food, available);
-            return needed - available; // 不足分が乞食カードの数
+            
+            int stillNeeded = needed - available;
+            
+            // リソース変換システムを使用して食料を確保
+            ResourceConverter converter = FindObjectOfType<ResourceConverter>();
+            if (converter != null)
+            {
+                int convertedFood = converter.AutoConvertForFood(this, stillNeeded);
+                stillNeeded -= convertedFood;
+            }
+            
+            // それでも不足している場合は乞食カード
+            return Mathf.Max(0, stillNeeded);
         }
     }
     
