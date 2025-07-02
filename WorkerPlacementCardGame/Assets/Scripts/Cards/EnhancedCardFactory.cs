@@ -258,4 +258,127 @@ public class EnhancedCardFactory : MonoBehaviour
         cost.resourceCosts.Add(resourceType, amount);
         return cost;
     }
+    
+    /// <summary>
+    /// OnTakeトリガーを使用した職業カードを作成
+    /// </summary>
+    public static EnhancedOccupationCard CreateTakeTriggeredOccupation(string cardName, string cardID, OccupationType occupationType, ResourceType triggerResource)
+    {
+        var card = CreateSampleOccupationCard(cardName, cardID, occupationType);
+        
+        // OnTakeトリガー効果を追加
+        var takeEffect = new CardEffect
+        {
+            effectID = $"{cardID}_take",
+            effectDescription = $"{triggerResource}取得時に追加効果",
+            effectType = CardEffectType.ResourceModification,
+            triggerType = OccupationTrigger.OnTake,
+            triggerCondition = triggerResource.ToString(), // 特定リソースのみに反応
+            maxUsesPerRound = 3 // 1ラウンドに3回まで
+        };
+        
+        switch (occupationType)
+        {
+            case OccupationType.Trader:
+                // 商人: 建材取得時に食料獲得
+                if (triggerResource == ResourceType.Wood || triggerResource == ResourceType.Clay || triggerResource == ResourceType.Stone)
+                {
+                    takeEffect.resourceGain.Add(ResourceType.Food, 1);
+                    takeEffect.effectDescription = "建材取得時に食料1個獲得";
+                }
+                break;
+                
+            case OccupationType.Forester:
+                // 森林管理人: 木材取得時に追加木材
+                if (triggerResource == ResourceType.Wood)
+                {
+                    takeEffect.resourceGain.Add(ResourceType.Wood, 1);
+                    takeEffect.effectDescription = "木材取得時に追加木材1個獲得";
+                }
+                break;
+                
+            default:
+                takeEffect.resourceGain.Add(ResourceType.Food, 1);
+                break;
+        }
+        
+        card.AddEffect(takeEffect);
+        card.AddTag("取得反応", "アイテム取得時に効果を発動");
+        
+        return card;
+    }
+    
+    /// <summary>
+    /// OnReceiveトリガーを使用した職業カードを作成
+    /// </summary>
+    public static EnhancedOccupationCard CreateReceiveTriggeredOccupation(string cardName, string cardID, OccupationType occupationType, int minAmount = 1)
+    {
+        var card = CreateSampleOccupationCard(cardName, cardID, occupationType);
+        
+        // OnReceiveトリガー効果を追加
+        var receiveEffect = new CardEffect
+        {
+            effectID = $"{cardID}_receive",
+            effectDescription = $"リソース受取時に追加効果",
+            effectType = CardEffectType.VictoryPointModification,
+            triggerType = OccupationTrigger.OnReceive,
+            specialEffectData = $"min_amount:{minAmount}", // 最小受取量の条件
+            maxUsesPerRound = 2 // 1ラウンドに2回まで
+        };
+        
+        switch (occupationType)
+        {
+            case OccupationType.Scholar:
+                // 学者: 大量リソース受取時に勝利点獲得
+                receiveEffect.victoryPointModifier = 1;
+                receiveEffect.effectDescription = $"{minAmount}個以上のリソース受取時に勝利点1点獲得";
+                receiveEffect.specialEffectData = $"min_amount:{minAmount}";
+                break;
+                
+            case OccupationType.Merchant:
+                // 大商人: リソース受取時に食料変換
+                receiveEffect.effectType = CardEffectType.ResourceModification;
+                receiveEffect.resourceGain.Add(ResourceType.Food, 1);
+                receiveEffect.effectDescription = $"{minAmount}個以上のリソース受取時に食料1個獲得";
+                receiveEffect.victoryPointModifier = 0;
+                break;
+                
+            default:
+                receiveEffect.resourceGain.Add(ResourceType.Food, 1);
+                receiveEffect.effectDescription = "リソース受取時に食料1個獲得";
+                receiveEffect.victoryPointModifier = 0;
+                break;
+        }
+        
+        card.AddEffect(receiveEffect);
+        card.AddTag("受取反応", "アイテム受取時に効果を発動");
+        
+        return card;
+    }
+    
+    /// <summary>
+    /// 新しいトリガータイプを使用したサンプルカードを作成
+    /// </summary>
+    public void CreateNewTriggerSampleCards()
+    {
+        Debug.Log("=== 新しいトリガータイプのサンプルカード作成開始 ===");
+        
+        // OnTakeトリガーのサンプルカード
+        var trader = CreateTakeTriggeredOccupation("商人", "OCC_TRADER", OccupationType.Trader, ResourceType.Wood);
+        var forester = CreateTakeTriggeredOccupation("森林管理人", "OCC_FORESTER", OccupationType.Forester, ResourceType.Wood);
+        
+        Debug.Log("OnTakeトリガーカード作成完了:");
+        Debug.Log(trader.GetCardInfo());
+        Debug.Log(forester.GetCardInfo());
+        
+        // OnReceiveトリガーのサンプルカード
+        var scholar = CreateReceiveTriggeredOccupation("学者", "OCC_SCHOLAR", OccupationType.Scholar, 3);
+        var merchant = CreateReceiveTriggeredOccupation("大商人", "OCC_MERCHANT", OccupationType.Merchant, 2);
+        
+        Debug.Log("\nOnReceiveトリガーカード作成完了:");
+        Debug.Log(scholar.GetCardInfo());
+        Debug.Log(merchant.GetCardInfo());
+        
+        Debug.Log("=== 新しいトリガータイプのサンプルカード作成完了 ===");
+    }
 }

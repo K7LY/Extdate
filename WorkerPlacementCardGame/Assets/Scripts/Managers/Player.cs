@@ -80,6 +80,91 @@ public class Player : MonoBehaviour
         resources[type] = Mathf.Max(0, resources[type]);
         
         OnResourceChanged?.Invoke(type, resources[type]);
+        
+        // OnReceiveトリガーを発動（リソースが手持ちに入ったとき）
+        if (amount > 0)
+        {
+            TriggerOnReceiveEffects(type, amount);
+        }
+    }
+    
+    /// <summary>
+    /// アクションスペースからリソースを取得する（OnTakeトリガー付き）
+    /// </summary>
+    public void TakeResourceFromAction(ResourceType type, int amount, ActionSpace actionSpace)
+    {
+        // OnTakeトリガーを発動（アイテムを取得したとき）
+        TriggerOnTakeEffects(type, amount, actionSpace, "action");
+        
+        // 実際にリソースを追加
+        AddResource(type, amount);
+        
+        Debug.Log($"{playerName}が{actionSpace.actionName}から{type}{amount}個を取得しました");
+    }
+    
+    /// <summary>
+    /// カード効果でリソースを取得する（OnTakeトリガー付き）
+    /// </summary>
+    public void TakeResourceFromCardEffect(ResourceType type, int amount, string cardName = "")
+    {
+        // OnTakeトリガーを発動
+        TriggerOnTakeEffects(type, amount, null, "card_effect");
+        
+        // 実際にリソースを追加
+        AddResource(type, amount);
+        
+        Debug.Log($"{playerName}がカード効果「{cardName}」から{type}{amount}個を取得しました");
+    }
+    
+    /// <summary>
+    /// 直接リソースを受け取る（OnReceiveトリガー付き）
+    /// </summary>
+    public void ReceiveResourceDirect(ResourceType type, int amount, Player sourcePlayer = null, string method = "direct")
+    {
+        // OnReceiveトリガーを発動
+        TriggerOnReceiveEffects(type, amount, sourcePlayer, method);
+        
+        // 実際にリソースを追加
+        AddResource(type, amount);
+        
+        string source = sourcePlayer != null ? $"{sourcePlayer.playerName}から" : "";
+        Debug.Log($"{playerName}が{source}{type}{amount}個を受け取りました");
+    }
+    
+    /// <summary>
+    /// OnTakeトリガー効果を発動
+    /// </summary>
+    private void TriggerOnTakeEffects(ResourceType resourceType, int amount, ActionSpace actionSpace, string method)
+    {
+        var takeContext = new CardTriggerManager.TakeEventContext(this, resourceType, amount, actionSpace, method);
+        
+        // 職業効果のトリガー
+        TriggerOccupationEffects(OccupationTrigger.OnTake, takeContext);
+        
+        // GameManagerのCardTriggerManagerを使用してトリガー効果を発動
+        GameManager gameManager = FindObjectOfType<GameManager>();
+        if (gameManager != null)
+        {
+            gameManager.ExecuteAllTriggerableCards(OccupationTrigger.OnTake, this, actionSpace);
+        }
+    }
+    
+    /// <summary>
+    /// OnReceiveトリガー効果を発動
+    /// </summary>
+    private void TriggerOnReceiveEffects(ResourceType resourceType, int amount, Player sourcePlayer = null, string method = "direct")
+    {
+        var receiveContext = new CardTriggerManager.ReceiveEventContext(this, resourceType, amount, sourcePlayer, method);
+        
+        // 職業効果のトリガー
+        TriggerOccupationEffects(OccupationTrigger.OnReceive, receiveContext);
+        
+        // GameManagerのCardTriggerManagerを使用してトリガー効果を発動
+        GameManager gameManager = FindObjectOfType<GameManager>();
+        if (gameManager != null)
+        {
+            gameManager.ExecuteAllTriggerableCards(OccupationTrigger.OnReceive, this);
+        }
     }
     
     public bool SpendResource(ResourceType type, int amount)

@@ -85,6 +85,8 @@ gameManager.DebugPrintTriggerSummary();
 - `OccupationTrigger.OnBreeding` - 繁殖時
 - `OccupationTrigger.OnTurnEnd` - ターン終了時
 - `OccupationTrigger.OnRoundStart` - ラウンド開始時
+- `OccupationTrigger.OnTake` - アイテムを取得したとき ⭐ NEW
+- `OccupationTrigger.OnReceive` - アイテムが手持ちに入ったとき ⭐ NEW
 - `OccupationTrigger.Passive` - 継続効果
 
 ## TriggerableCard クラス
@@ -270,3 +272,130 @@ public void AnalyzeNewCard(EnhancedCard card, Player owner)
 ```
 
 この自動追加機能により、カードシステムがより使いやすく、デバッグしやすくなりました。
+
+---
+
+## 🆕 新しいトリガータイプ: OnTake と OnReceive
+
+### 概要
+
+v3.0から、リソース取得・受取に関する新しいトリガータイプが追加されました：
+
+- **OnTake**: プレイヤーが能動的にアイテムを取得したとき
+- **OnReceive**: プレイヤーの手持ちにアイテムが入ったとき（受動的）
+
+### OnTakeトリガー
+
+アクションスペースからの取得、カード効果での取得など、プレイヤーが能動的にリソースを獲得する際に発動します。
+
+#### 使用例
+
+```csharp
+// アクションスペースからリソースを取得
+player.TakeResourceFromAction(ResourceType.Wood, 2, actionSpace);
+// → OnTakeトリガーが発動
+
+// カード効果でリソースを取得
+player.TakeResourceFromCardEffect(ResourceType.Clay, 1, "大工の効果");
+// → OnTakeトリガーが発動
+```
+
+#### 条件設定
+
+```csharp
+// 特定のリソースタイプのみに反応
+effect.triggerCondition = "Wood"; // 木材取得時のみ
+
+// 特定の取得方法のみに反応
+effect.specialEffectData = "take_method:action"; // アクションでの取得のみ
+```
+
+### OnReceiveトリガー
+
+リソースが手持ちに入る全ての場合に発動します（OnTakeも含む）。
+
+#### 使用例
+
+```csharp
+// 直接リソースを受け取る
+player.ReceiveResourceDirect(ResourceType.Food, 3, sourcePlayer, "trade");
+// → OnReceiveトリガーが発動
+
+// 通常のAddResourceでも発動
+player.AddResource(ResourceType.Grain, 2);
+// → OnReceiveトリガーが発動
+```
+
+#### 条件設定
+
+```csharp
+// 最小受取量の条件
+effect.specialEffectData = "min_amount:3"; // 3個以上受け取った場合のみ
+
+// 特定のリソースタイプのみに反応
+effect.triggerCondition = "Food"; // 食料受取時のみ
+```
+
+### 実装例
+
+#### 商人カード（OnTakeトリガー）
+
+```csharp
+var traderCard = EnhancedCardFactory.CreateTakeTriggeredOccupation(
+    "商人", "OCC_TRADER", OccupationType.Trader, ResourceType.Wood);
+// 建材取得時に食料1個獲得
+```
+
+#### 学者カード（OnReceiveトリガー）
+
+```csharp
+var scholarCard = EnhancedCardFactory.CreateReceiveTriggeredOccupation(
+    "学者", "OCC_SCHOLAR", OccupationType.Scholar, 3);
+// 3個以上のリソース受取時に勝利点1点獲得
+```
+
+### イベントコンテキスト
+
+#### TakeEventContext
+
+```csharp
+public class TakeEventContext : EventContext
+{
+    public ResourceType resourceType;   // 取得したリソースの種類
+    public int amount;                  // 取得した量
+    public ActionSpace sourceActionSpace; // 取得元のアクションスペース
+    public string takeMethod;           // 取得方法 ("action", "card_effect", etc.)
+}
+```
+
+#### ReceiveEventContext
+
+```csharp
+public class ReceiveEventContext : EventContext
+{
+    public ResourceType resourceType;   // 受け取ったリソースの種類
+    public int amount;                  // 受け取った量
+    public Player sourcePlayer;         // リソースの提供者
+    public string receiveMethod;        // 受取方法 ("direct", "trade", etc.)
+}
+```
+
+### 使い分けのガイドライン
+
+#### OnTakeを使用する場合
+- アクション実行時の追加効果
+- 特定の取得方法に反応する効果
+- 能動的な取得行動に対するボーナス
+
+#### OnReceiveを使用する場合
+- リソース蓄積に関する効果
+- 大量受取時のボーナス
+- 受動的な受取も含めた全般的な効果
+
+### 注意事項
+
+1. **OnReceiveはOnTakeを含む**: OnTakeが発動した後、OnReceiveも発動します
+2. **条件設定**: `triggerCondition`と`specialEffectData`で詳細な条件を設定可能
+3. **使用回数制限**: `maxUsesPerRound`で1ラウンドあたりの発動回数を制限可能
+
+これらの新しいトリガータイプにより、より細かなリソース管理とカード効果の実装が可能になりました。

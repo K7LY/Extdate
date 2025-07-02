@@ -43,6 +43,42 @@ public class CardTriggerManager : MonoBehaviour
         }
     }
     
+    [System.Serializable]
+    public class TakeEventContext : EventContext
+    {
+        public ResourceType resourceType;
+        public int amount;
+        public ActionSpace sourceActionSpace;
+        public string takeMethod; // "action", "card_effect", "trade", etc.
+        
+        public TakeEventContext(Player player, ResourceType resource, int amt, ActionSpace source = null, string method = "action") 
+            : base(OccupationTrigger.OnTake, player)
+        {
+            resourceType = resource;
+            amount = amt;
+            sourceActionSpace = source;
+            takeMethod = method;
+        }
+    }
+    
+    [System.Serializable]
+    public class ReceiveEventContext : EventContext
+    {
+        public ResourceType resourceType;
+        public int amount;
+        public Player sourcePlayer; // リソースの提供者（トレードの場合など）
+        public string receiveMethod; // "direct", "trade", "card_effect", "passive", etc.
+        
+        public ReceiveEventContext(Player player, ResourceType resource, int amt, Player source = null, string method = "direct") 
+            : base(OccupationTrigger.OnReceive, player)
+        {
+            resourceType = resource;
+            amount = amt;
+            sourcePlayer = source;
+            receiveMethod = method;
+        }
+    }
+    
     private GameManager gameManager;
     
     void Start()
@@ -175,6 +211,55 @@ public class CardTriggerManager : MonoBehaviour
                 !effect.resourceGain.ContainsKey(context.resourceType))
             {
                 return false;
+            }
+            
+            // OnTakeトリガーの特殊条件チェック
+            if (context is TakeEventContext takeContext)
+            {
+                // 特定のリソースタイプのみに反応する効果
+                if (effect.triggerCondition != null && !string.IsNullOrEmpty(effect.triggerCondition))
+                {
+                    if (!effect.triggerCondition.Contains(takeContext.resourceType.ToString()))
+                    {
+                        return false;
+                    }
+                }
+                
+                // 特定の取得方法のみに反応する効果
+                if (effect.specialEffectData != null && effect.specialEffectData.Contains("take_method:"))
+                {
+                    string requiredMethod = effect.specialEffectData.Split(':')[1];
+                    if (takeContext.takeMethod != requiredMethod)
+                    {
+                        return false;
+                    }
+                }
+            }
+            
+            // OnReceiveトリガーの特殊条件チェック
+            if (context is ReceiveEventContext receiveContext)
+            {
+                // 特定のリソースタイプのみに反応する効果
+                if (effect.triggerCondition != null && !string.IsNullOrEmpty(effect.triggerCondition))
+                {
+                    if (!effect.triggerCondition.Contains(receiveContext.resourceType.ToString()))
+                    {
+                        return false;
+                    }
+                }
+                
+                // 最小受け取り量の条件チェック
+                if (effect.specialEffectData != null && effect.specialEffectData.Contains("min_amount:"))
+                {
+                    string[] parts = effect.specialEffectData.Split(':');
+                    if (parts.Length > 1 && int.TryParse(parts[1], out int minAmount))
+                    {
+                        if (receiveContext.amount < minAmount)
+                        {
+                            return false;
+                        }
+                    }
+                }
             }
         }
         
