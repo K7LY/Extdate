@@ -387,59 +387,8 @@ public class Player : MonoBehaviour
         return true; // Agricolaでは畑の追加は無料
     }
     
-    // 汎用的な種まきメソッド（作物種類を引数で指定）
-    public bool Sow(ResourceType cropType, int amount)
-    {
-        return SowCrop(cropType, amount);
-    }
-    
-    // 汎用的な種まきメソッド（畑を指定）
-    public bool Sow(ResourceType cropType, int amount, int fieldIndex)
-    {
-        return SowCrop(cropType, amount, fieldIndex);
-    }
-    
-    // 種まき - 作物別メソッド（畑自動選択）
-    public bool SowCrop(ResourceType cropType, int amount)
-    {
-        // 有効な作物種類かチェック
-        if (!IsValidCropType(cropType))
-        {
-            Debug.LogWarning($"無効な作物種類です: {cropType}");
-            return false;
-        }
-        
-        // リソースが足りるかチェック
-        if (GetResource(cropType) < amount)
-        {
-            Debug.LogWarning($"{cropType}が不足しています（必要: {amount}個、所持: {GetResource(cropType)}個）");
-            return false;
-        }
-        
-        // 植えられる畑があるかチェック
-        Field availableField = GetAvailableFieldForCrop(cropType, amount);
-        if (availableField == null)
-        {
-            Debug.LogWarning($"{cropType}を植えられる適切な畑がありません");
-            return false;
-        }
-        
-        // 畑のインデックスを取得
-        int fieldIndex = fieldList.IndexOf(availableField);
-        
-        // 種まき実行
-        SpendResource(cropType, amount);
-        if (availableField.PlantCrop(cropType, amount))
-        {
-            Debug.Log($"{playerName}が{GetResourceName(cropType)}{amount}個を畑{fieldIndex + 1}に植えました");
-            return true;
-        }
-        
-        return false;
-    }
-    
-    // 種まき - 畑を指定
-    public bool SowCrop(ResourceType cropType, int amount, int fieldIndex)
+                         // 種まき - 常に種類と畑位置を指定（1個ずつ植える）
+    public bool Sow(ResourceType cropType, int fieldIndex)
     {
         // 有効な作物種類かチェック
         if (!IsValidCropType(cropType))
@@ -455,52 +404,44 @@ public class Player : MonoBehaviour
             return false;
         }
         
-        // リソースが足りるかチェック
-        if (GetResource(cropType) < amount)
+        // リソースが足りるかチェック（1個必要）
+        if (GetResource(cropType) < 1)
         {
-            Debug.LogWarning($"{cropType}が不足しています（必要: {amount}個、所持: {GetResource(cropType)}個）");
+            Debug.LogWarning($"{GetResourceName(cropType)}が不足しています（必要: 1個、所持: {GetResource(cropType)}個）");
             return false;
         }
         
-        // 指定された畑に植えられるかチェック
+        // 指定された畑に植えられるかチェック（1個）
         Field targetField = fieldList[fieldIndex];
-        if (!targetField.CanPlantCrop(cropType, amount))
+        if (!targetField.CanPlantCrop(cropType, 1))
         {
-            Debug.LogWarning($"畑{fieldIndex + 1}には{GetResourceName(cropType)}{amount}個を植えることができません");
+            Debug.LogWarning($"畑{fieldIndex + 1}には{GetResourceName(cropType)}を植えることができません");
             
             // 現在の畑の状況を表示
             if (targetField.IsEmpty())
             {
-                Debug.LogWarning($"  畑{fieldIndex + 1}は空です");
+                Debug.LogWarning($"  畑{fieldIndex + 1}は空です（容量制限に達している可能性があります）");
             }
             else
             {
                 var crops = targetField.GetAllCrops();
                 string cropInfo = string.Join(", ", crops.Select(kv => $"{GetResourceName(kv.Key)}×{kv.Value}"));
                 Debug.LogWarning($"  畑{fieldIndex + 1}の現在の状況: {cropInfo}");
+                Debug.LogWarning($"  各畑には同じ作物を最大3個まで植えられます");
             }
             return false;
         }
         
-        // 種まき実行
-        SpendResource(cropType, amount);
-        if (targetField.PlantCrop(cropType, amount))
+        // 種まき実行（1個）
+        SpendResource(cropType, 1);
+        if (targetField.PlantCrop(cropType, 1))
         {
-            Debug.Log($"{playerName}が{GetResourceName(cropType)}{amount}個を畑{fieldIndex + 1}に植えました");
+            Debug.Log($"{playerName}が{GetResourceName(cropType)}1個を畑{fieldIndex + 1}に植えました");
             return true;
         }
         
         return false;
     }
-    
-    // 従来メソッドの互換性維持
-    public bool SowGrain(int amount) => SowCrop(ResourceType.Grain, amount);
-    public bool SowVegetable(int amount) => SowCrop(ResourceType.Vegetable, amount);
-    
-    // 新しい作物種類の種まきメソッド
-    public bool SowWood(int amount) => SowCrop(ResourceType.Wood, amount);
-    public bool SowReed(int amount) => SowCrop(ResourceType.Reed, amount);
-    public bool SowFood(int amount) => SowCrop(ResourceType.Food, amount);
     
     // 有効な作物種類かチェック
     private bool IsValidCropType(ResourceType cropType)
@@ -510,30 +451,6 @@ public class Player : MonoBehaviour
                cropType == ResourceType.Wood || 
                cropType == ResourceType.Reed || 
                cropType == ResourceType.Food;
-    }
-    
-    // 指定した作物を植えられる畑を見つける
-    private Field GetAvailableFieldForCrop(ResourceType cropType, int amount)
-    {
-        // まず、同じ作物が既に植えられている畑から探す
-        foreach (Field field in fieldList)
-        {
-            if (field.GetCropCount(cropType) > 0 && field.CanPlantCrop(cropType, amount))
-            {
-                return field;
-            }
-        }
-        
-        // 空の畑を探す
-        foreach (Field field in fieldList)
-        {
-            if (field.IsEmpty() && field.CanPlantCrop(cropType, amount))
-            {
-                return field;
-            }
-        }
-        
-        return null;
     }
     
     public int GetEmptyFields()
@@ -606,7 +523,7 @@ public class Player : MonoBehaviour
         TriggerOccupationEffects(OccupationTrigger.OnHarvest);
     }
     
-         // 畑の状態を確認するメソッド
+             // 畑の状態を確認するメソッド
     public void PrintFieldStatus()
     {
         Debug.Log($"=== {playerName}の畑の状況 ===");
@@ -628,29 +545,23 @@ public class Player : MonoBehaviour
             }
         }
         Debug.Log("使用例:");
-        Debug.Log("  player.Sow(ResourceType.Grain, 2);      // 穀物2個を自動選択した畑に");
-        Debug.Log("  player.Sow(ResourceType.Vegetable, 1, 0); // 野菜1個を畑1（インデックス0）に");
+        Debug.Log("  player.Sow(ResourceType.Grain, 0);      // 穀物1個を畑1（インデックス0）に");
+        Debug.Log("  player.Sow(ResourceType.Vegetable, 1);  // 野菜1個を畑2（インデックス1）に");
     }
     
-    // 種まきの使用例を表示するメソッド
+             // 種まきの使用例を表示するメソッド
     public void ShowSowingExamples()
     {
         Debug.Log($"=== {playerName}の種まき使用例 ===");
-        Debug.Log("基本的な使い方:");
-        Debug.Log("  player.Sow(ResourceType.Grain, 2);        // 穀物2個を適切な畑に自動配置");
-        Debug.Log("  player.Sow(ResourceType.Vegetable, 1);    // 野菜1個を適切な畑に自動配置");
-        Debug.Log("  player.Sow(ResourceType.Wood, 1);         // 木1個を適切な畑に自動配置");
-        Debug.Log("  player.Sow(ResourceType.Reed, 1);         // 葦1個を適切な畑に自動配置");
-        Debug.Log("  player.Sow(ResourceType.Food, 1);         // 食料1個を適切な畑に自動配置");
+        Debug.Log("基本的な使い方（常に作物種類と畑位置を指定）:");
+        Debug.Log("  player.Sow(ResourceType.Grain, 0);        // 穀物1個を畑1（インデックス0）に");
+        Debug.Log("  player.Sow(ResourceType.Vegetable, 1);    // 野菜1個を畑2（インデックス1）に");
+        Debug.Log("  player.Sow(ResourceType.Wood, 2);         // 木1個を畑3（インデックス2）に");
+        Debug.Log("  player.Sow(ResourceType.Reed, 0);         // 葦1個を畑1（インデックス0）に");
+        Debug.Log("  player.Sow(ResourceType.Food, 1);         // 食料1個を畑2（インデックス1）に");
         Debug.Log("");
-        Debug.Log("畑を指定する場合:");
-        Debug.Log("  player.Sow(ResourceType.Grain, 2, 0);     // 穀物2個を畑1（インデックス0）に");
-        Debug.Log("  player.Sow(ResourceType.Vegetable, 1, 1); // 野菜1個を畑2（インデックス1）に");
-        Debug.Log("  player.Sow(ResourceType.Wood, 1, 2);      // 木1個を畑3（インデックス2）に");
-        Debug.Log("");
-        Debug.Log("従来のメソッドも使用可能:");
-        Debug.Log("  player.SowGrain(2);      // 穀物2個を自動配置");
-        Debug.Log("  player.SowVegetable(1);  // 野菜1個を自動配置");
+        Debug.Log("各畑には同じ作物を最大3個まで植えることができます。");
+        Debug.Log("畑のインデックスは0から始まります（畑1=インデックス0、畑2=インデックス1...）");
     }
     
     // 特定の作物の合計数を畑から取得
