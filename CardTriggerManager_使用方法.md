@@ -392,10 +392,42 @@ public class ReceiveEventContext : EventContext
 - 大量受取時のボーナス
 - 受動的な受取も含めた全般的な効果
 
+### Take→Receiveの流れ制御
+
+アクションスペースからの取得やカード効果での取得では、以下の順序で処理されます：
+
+```csharp
+// アクションスペースからの取得
+player.TakeResourceFromAction(ResourceType.Wood, 2, actionSpace);
+// 1. OnTakeトリガー発動
+// 2. リソースを実際に追加
+// 3. OnReceiveトリガー発動
+
+// カード効果での取得
+player.TakeResourceFromCardEffect(ResourceType.Clay, 1, "カード名");
+// 1. OnTakeトリガー発動
+// 2. リソースを実際に追加
+// 3. OnReceiveトリガー発動
+```
+
+### 無限ループ防止
+
+トリガー効果によってリソースが追加される際の無限ループを防ぐため、以下の仕組みが実装されています：
+
+- **トリガー実行中フラグ**: 同じトリガータイプが実行中は再発動を防止
+- **適切なメソッド選択**: カード効果では`TakeResourceFromCardEffect`を使用
+- **トリガー制御**: 内部的にトリガー発動を制御可能
+
 ### 注意事項
 
-1. **OnReceiveはOnTakeを含む**: OnTakeが発動した後、OnReceiveも発動します
-2. **条件設定**: `triggerCondition`と`specialEffectData`で詳細な条件を設定可能
-3. **使用回数制限**: `maxUsesPerRound`で1ラウンドあたりの発動回数を制限可能
+1. **Take→Receiveの順序**: アクションやカード効果での取得では、OnTakeが先に発動し、その後OnReceiveが発動します
+2. **無限ループ防止**: 同じトリガータイプが実行中の場合、再発動は自動的に防止されます
+3. **条件設定**: `triggerCondition`と`specialEffectData`で詳細な条件を設定可能
+4. **使用回数制限**: `maxUsesPerRound`で1ラウンドあたりの発動回数を制限可能
+5. **適切なメソッド選択**: 
+   - アクション実行: `TakeResourceFromAction()`
+   - カード効果: `TakeResourceFromCardEffect()`
+   - 直接受取: `ReceiveResourceDirect()`
+   - 通常追加: `AddResource()`（OnReceiveのみ発動）
 
 これらの新しいトリガータイプにより、より細かなリソース管理とカード効果の実装が可能になりました。
