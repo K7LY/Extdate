@@ -3,6 +3,63 @@ using System.Collections.Generic;
 using System.Linq;
 
 [System.Serializable]
+public class Field
+{
+    public Dictionary<ResourceType, int> crops = new Dictionary<ResourceType, int>();
+    
+    public bool IsEmpty()
+    {
+        return crops.Count == 0 || crops.Values.All(count => count == 0);
+    }
+    
+    public bool CanPlantCrop(ResourceType cropType, int amount)
+    {
+        // 各畑には最大3個まで同じ作物を植えられる（Agricola風）
+        int currentAmount = crops.ContainsKey(cropType) ? crops[cropType] : 0;
+        return currentAmount + amount <= 3;
+    }
+    
+    public bool PlantCrop(ResourceType cropType, int amount)
+    {
+        if (!CanPlantCrop(cropType, amount)) return false;
+        
+        if (!crops.ContainsKey(cropType))
+            crops[cropType] = 0;
+        crops[cropType] += amount;
+        return true;
+    }
+    
+    public int HarvestCrop(ResourceType cropType, int maxAmount = int.MaxValue)
+    {
+        if (!crops.ContainsKey(cropType) || crops[cropType] == 0)
+            return 0;
+            
+        int harvestedAmount = Mathf.Min(crops[cropType], maxAmount);
+        crops[cropType] -= harvestedAmount;
+        
+        if (crops[cropType] == 0)
+            crops.Remove(cropType);
+            
+        return harvestedAmount;
+    }
+    
+    public Dictionary<ResourceType, int> GetAllCrops()
+    {
+        return new Dictionary<ResourceType, int>(crops);
+    }
+    
+    public int GetCropCount(ResourceType cropType)
+    {
+        return crops.ContainsKey(cropType) ? crops[cropType] : 0;
+    }
+    
+    public List<ResourceType> GetCropTypes()
+    {
+        return crops.Keys.ToList();
+    }
+}
+
+[System.Serializable]
 public class Player : MonoBehaviour
 {
     [Header("プレイヤー情報")]
@@ -25,7 +82,8 @@ public class Player : MonoBehaviour
     [SerializeField] private int rooms = 2; // 初期は2部屋
     
     [Header("農場")]
-    [SerializeField] private int fields = 0;        // 畑の数
+    [SerializeField] private int fields = 0;        // 畑の数（後方互換性のため保持）
+    [SerializeField] private List<Field> fieldList = new List<Field>(); // 詳細な畑の管理
     [SerializeField] private int pastures = 0;      // 牧場の数
     [SerializeField] private int fences = 0;        // 柵の数
     [SerializeField] private int stables = 0;       // 小屋の数
@@ -47,6 +105,7 @@ public class Player : MonoBehaviour
     void Start()
     {
         InitializeResources();
+        InitializeFields();
         availableWorkers = familyMembers;
     }
     
@@ -63,6 +122,17 @@ public class Player : MonoBehaviour
         resources[ResourceType.Boar] = 0;
         resources[ResourceType.Cattle] = 0;
         resources[ResourceType.Food] = 0;
+    }
+    
+    private void InitializeFields()
+    {
+        // 既存のfields値に基づいてfieldListを初期化
+        fieldList.Clear();
+        for (int i = 0; i < fields; i++)
+        {
+            fieldList.Add(new Field());
+        }
+        Debug.Log($"{playerName}の畑を初期化しました（畑数: {fields}個）");
     }
     
     // リソース管理
@@ -312,49 +382,225 @@ public class Player : MonoBehaviour
     public bool AddField()
     {
         fields++;
+        fieldList.Add(new Field());
+        Debug.Log($"{playerName}が新しい畑を追加しました（合計: {fields}個）");
         return true; // Agricolaでは畑の追加は無料
     }
     
-    // 種まき
-    public bool SowGrain(int amount)
+    // 種まき - 作物別メソッド
+    public bool SowCrop(ResourceType cropType, int amount)
     {
-        if (GetResource(ResourceType.Grain) >= amount && fields > 0)
+        // 有効な作物種類かチェック
+        if (!IsValidCropType(cropType))
         {
-            SpendResource(ResourceType.Grain, amount);
-            // 畑に穀物を配置（実装は簡略化）
+            Debug.LogWarning($"無効な作物種類です: {cropType}");
+            return false;
+        }
+        
+        // リソースが足りるかチェック
+        if (GetResource(cropType) < amount)
+        {
+            Debug.LogWarning($"{cropType}が不足しています（必要: {amount}個、所持: {GetResource(cropType)}個）");
+            return false;
+        }
+        
+        // 植えられる畑があるかチェック
+        Field availableField = GetAvailableFieldForCrop(cropType, amount);
+        if (availableField == null)
+        {
+            Debug.LogWarning($"{cropType}を植えられる適切な畑がありません");
+            return false;
+        }
+        
+        // 種まき実行
+        SpendResource(cropType, amount);
+        if (availableField.PlantCrop(cropType, amount))
+        {
+            Debug.Log($"{playerName}が{cropType}{amount}個を畑に植えました");
             return true;
         }
+        
         return false;
     }
     
-    public bool SowVegetable(int amount)
+    // 従来メソッドの互換性維持
+    public bool SowGrain(int amount) => SowCrop(ResourceType.Grain, amount);
+    public bool SowVegetable(int amount) => SowCrop(ResourceType.Vegetable, amount);
+    
+    // 新しい作物種類の種まきメソッド
+    public bool SowWood(int amount) => SowCrop(ResourceType.Wood, amount);
+    public bool SowReed(int amount) => SowCrop(ResourceType.Reed, amount);
+    public bool SowFood(int amount) => SowCrop(ResourceType.Food, amount);
+    
+    // 有効な作物種類かチェック
+    private bool IsValidCropType(ResourceType cropType)
     {
-        if (GetResource(ResourceType.Vegetable) >= amount && fields > 0)
+        return cropType == ResourceType.Grain || 
+               cropType == ResourceType.Vegetable || 
+               cropType == ResourceType.Wood || 
+               cropType == ResourceType.Reed || 
+               cropType == ResourceType.Food;
+    }
+    
+    // 指定した作物を植えられる畑を見つける
+    private Field GetAvailableFieldForCrop(ResourceType cropType, int amount)
+    {
+        // まず、同じ作物が既に植えられている畑から探す
+        foreach (Field field in fieldList)
         {
-            SpendResource(ResourceType.Vegetable, amount);
-            // 畑に野菜を配置（実装は簡略化）
-            return true;
+            if (field.GetCropCount(cropType) > 0 && field.CanPlantCrop(cropType, amount))
+            {
+                return field;
+            }
         }
-        return false;
+        
+        // 空の畑を探す
+        foreach (Field field in fieldList)
+        {
+            if (field.IsEmpty() && field.CanPlantCrop(cropType, amount))
+            {
+                return field;
+            }
+        }
+        
+        return null;
     }
     
     public int GetEmptyFields()
     {
-        // 簡略化：総畑数を返す（実際には種まき済みの畑を除く必要がある）
-        return fields;
+        int emptyCount = 0;
+        foreach (Field field in fieldList)
+        {
+            if (field.IsEmpty())
+            {
+                emptyCount++;
+            }
+        }
+        return emptyCount;
     }
     
     // 収穫
     public void HarvestCrops()
     {
-        // 簡略化：畑の数だけ穀物を獲得（収穫による直接受取）
-        if (fields > 0)
+        Debug.Log($"🌾 {playerName}の収穫を開始します");
+        
+        int totalHarvested = 0;
+        Dictionary<ResourceType, int> harvestedCrops = new Dictionary<ResourceType, int>();
+        
+        // 各畑から作物を収穫
+        foreach (Field field in fieldList)
         {
-            ReceiveResourceDirect(ResourceType.Grain, fields, null, "harvest");
+            if (!field.IsEmpty())
+            {
+                var fieldCrops = field.GetAllCrops();
+                foreach (var cropKV in fieldCrops)
+                {
+                    ResourceType cropType = cropKV.Key;
+                    int cropCount = cropKV.Value;
+                    
+                    if (cropCount > 0)
+                    {
+                        // 畑から作物を1個収穫して畑の作物を減らす
+                        int harvestedAmount = field.HarvestCrop(cropType, 1);
+                        if (harvestedAmount > 0)
+                        {
+                            // プレイヤーに作物を追加
+                            ReceiveResourceDirect(cropType, harvestedAmount, null, "harvest");
+                            
+                            // 統計用
+                            if (!harvestedCrops.ContainsKey(cropType))
+                                harvestedCrops[cropType] = 0;
+                            harvestedCrops[cropType] += harvestedAmount;
+                            totalHarvested += harvestedAmount;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 収穫結果をログ出力
+        if (totalHarvested > 0)
+        {
+            Debug.Log($"  {playerName}の収穫結果:");
+            foreach (var cropKV in harvestedCrops)
+            {
+                Debug.Log($"    {GetResourceName(cropKV.Key)}: {cropKV.Value}個");
+            }
+        }
+        else
+        {
+            Debug.Log($"  {playerName}は収穫できる作物がありませんでした");
         }
         
         // 職業効果のトリガー
         TriggerOccupationEffects(OccupationTrigger.OnHarvest);
+    }
+    
+         // 畑の状態を確認するメソッド
+    public void PrintFieldStatus()
+    {
+        Debug.Log($"=== {playerName}の畑の状況 ===");
+        Debug.Log($"畑の総数: {fields}個");
+        Debug.Log($"空の畑: {GetEmptyFields()}個");
+        
+        for (int i = 0; i < fieldList.Count; i++)
+        {
+            Field field = fieldList[i];
+            if (field.IsEmpty())
+            {
+                Debug.Log($"  畑{i + 1}: 空");
+            }
+            else
+            {
+                var crops = field.GetAllCrops();
+                string cropInfo = string.Join(", ", crops.Select(kv => $"{GetResourceName(kv.Key)}×{kv.Value}"));
+                Debug.Log($"  畑{i + 1}: {cropInfo}");
+            }
+        }
+    }
+    
+    // 特定の作物の合計数を畑から取得
+    public int GetTotalCropsInFields(ResourceType cropType)
+    {
+        int total = 0;
+        foreach (Field field in fieldList)
+        {
+            total += field.GetCropCount(cropType);
+        }
+        return total;
+    }
+    
+    // 畑に植えられているすべての作物の統計を取得
+    public Dictionary<ResourceType, int> GetAllCropsInFields()
+    {
+        Dictionary<ResourceType, int> allCrops = new Dictionary<ResourceType, int>();
+        
+        foreach (Field field in fieldList)
+        {
+            var fieldCrops = field.GetAllCrops();
+            foreach (var cropKV in fieldCrops)
+            {
+                if (!allCrops.ContainsKey(cropKV.Key))
+                    allCrops[cropKV.Key] = 0;
+                allCrops[cropKV.Key] += cropKV.Value;
+            }
+        }
+        
+        return allCrops;
+    }
+    
+    // リソース名を日本語で取得（ログ用）
+    private string GetResourceName(ResourceType resourceType)
+    {
+        switch (resourceType)
+        {
+            case ResourceType.Grain: return "穀物";
+            case ResourceType.Vegetable: return "野菜";
+            case ResourceType.Wood: return "木材";
+            case ResourceType.Reed: return "葦";
+            case ResourceType.Food: return "食料";
+            default: return resourceType.ToString();
+        }
     }
     
     // 動物の飼育
