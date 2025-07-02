@@ -5,7 +5,18 @@ using System.Linq;
 [System.Serializable]
 public class Field
 {
+    public Vector2Int position; // プレイヤータイル上の座標
     public Dictionary<ResourceType, int> crops = new Dictionary<ResourceType, int>();
+    
+    public Field(Vector2Int pos)
+    {
+        position = pos;
+    }
+    
+    public Field(int x, int y)
+    {
+        position = new Vector2Int(x, y);
+    }
     
     public bool IsEmpty()
     {
@@ -83,10 +94,14 @@ public class Player : MonoBehaviour
     
     [Header("農場")]
     [SerializeField] private int fields = 0;        // 畑の数（後方互換性のため保持）
-    [SerializeField] private List<Field> fieldList = new List<Field>(); // 詳細な畑の管理
+    [SerializeField] private Dictionary<Vector2Int, Field> fieldMap = new Dictionary<Vector2Int, Field>(); // 座標ベースの畑管理
     [SerializeField] private int pastures = 0;      // 牧場の数
     [SerializeField] private int fences = 0;        // 柵の数
     [SerializeField] private int stables = 0;       // 小屋の数
+    
+    [Header("プレイヤータイル座標設定")]
+    [SerializeField] private int boardWidth = 5;    // プレイヤーボードの幅
+    [SerializeField] private int boardHeight = 3;   // プレイヤーボードの高さ
     
     [Header("カード")]
     [SerializeField] private List<Card> hand = new List<Card>();
@@ -126,12 +141,24 @@ public class Player : MonoBehaviour
     
     private void InitializeFields()
     {
-        // 既存のfields値に基づいてfieldListを初期化
-        fieldList.Clear();
-        for (int i = 0; i < fields; i++)
+        // 既存のfields値に基づいてfieldMapを初期化
+        fieldMap.Clear();
+        
+        // デフォルトの畑位置を設定（プレイヤーボード上の特定の座標）
+        Vector2Int[] defaultFieldPositions = {
+            new Vector2Int(0, 0), // 畑1
+            new Vector2Int(1, 0), // 畑2
+            new Vector2Int(2, 0), // 畑3
+            new Vector2Int(0, 1), // 畑4
+            new Vector2Int(1, 1), // 畑5
+        };
+        
+        for (int i = 0; i < fields && i < defaultFieldPositions.Length; i++)
         {
-            fieldList.Add(new Field());
+            Vector2Int position = defaultFieldPositions[i];
+            fieldMap[position] = new Field(position);
         }
+        
         Debug.Log($"{playerName}の畑を初期化しました（畑数: {fields}個）");
     }
     
@@ -378,17 +405,58 @@ public class Player : MonoBehaviour
         return false;
     }
     
-    // 畑の追加
-    public bool AddField()
+    // 畑の追加（指定座標に）
+    public bool AddField(Vector2Int position)
     {
+        // 座標が有効かチェック
+        if (!IsValidPosition(position))
+        {
+            Debug.LogWarning($"無効な座標です: ({position.x}, {position.y})");
+            return false;
+        }
+        
+        // 既に畑があるかチェック
+        if (fieldMap.ContainsKey(position))
+        {
+            Debug.LogWarning($"座標({position.x}, {position.y})には既に畑があります");
+            return false;
+        }
+        
+        // 畑を追加
         fields++;
-        fieldList.Add(new Field());
-        Debug.Log($"{playerName}が新しい畑を追加しました（合計: {fields}個）");
+        fieldMap[position] = new Field(position);
+        Debug.Log($"{playerName}が座標({position.x}, {position.y})に新しい畑を追加しました（合計: {fields}個）");
         return true; // Agricolaでは畑の追加は無料
     }
     
-                         // 種まき - 常に種類と畑位置を指定（1個ずつ植える）
-    public bool Sow(ResourceType cropType, int fieldIndex)
+    // 畑の追加（座標指定版）
+    public bool AddField(int x, int y)
+    {
+        return AddField(new Vector2Int(x, y));
+    }
+    
+    // 畑の追加（従来版 - 自動座標選択）
+    public bool AddField()
+    {
+        // 空いている座標を探して畑を追加
+        for (int y = 0; y < boardHeight; y++)
+        {
+            for (int x = 0; x < boardWidth; x++)
+            {
+                Vector2Int position = new Vector2Int(x, y);
+                if (IsValidPosition(position) && !fieldMap.ContainsKey(position))
+                {
+                    return AddField(position);
+                }
+            }
+        }
+        
+        Debug.LogWarning($"{playerName}のプレイヤーボードに畑を追加できる空きがありません");
+        return false;
+    }
+    
+       // 種まき - 座標を指定（1個ずつ植える）
+    public bool Sow(ResourceType cropType, Vector2Int position)
     {
         // 有効な作物種類かチェック
         if (!IsValidCropType(cropType))
@@ -397,10 +465,18 @@ public class Player : MonoBehaviour
             return false;
         }
         
-        // 畑のインデックスが有効かチェック
-        if (fieldIndex < 0 || fieldIndex >= fieldList.Count)
+        // 座標が有効かチェック
+        if (!IsValidPosition(position))
         {
-            Debug.LogWarning($"無効な畑インデックスです: {fieldIndex}（有効範囲: 0-{fieldList.Count - 1}）");
+            Debug.LogWarning($"無効な座標です: ({position.x}, {position.y})（有効範囲: 0-{boardWidth-1}, 0-{boardHeight-1}）");
+            return false;
+        }
+        
+        // 指定座標に畑があるかチェック
+        if (!fieldMap.ContainsKey(position))
+        {
+            Debug.LogWarning($"座標({position.x}, {position.y})には畑がありません");
+            Debug.LogWarning($"まず畑を追加してください: player.AddField({position.x}, {position.y})");
             return false;
         }
         
@@ -412,21 +488,21 @@ public class Player : MonoBehaviour
         }
         
         // 指定された畑に植えられるかチェック（1個）
-        Field targetField = fieldList[fieldIndex];
+        Field targetField = fieldMap[position];
         if (!targetField.CanPlantCrop(cropType, 1))
         {
-            Debug.LogWarning($"畑{fieldIndex + 1}には{GetResourceName(cropType)}を植えることができません");
+            Debug.LogWarning($"座標({position.x}, {position.y})の畑には{GetResourceName(cropType)}を植えることができません");
             
             // 現在の畑の状況を表示
             if (targetField.IsEmpty())
             {
-                Debug.LogWarning($"  畑{fieldIndex + 1}は空です（容量制限に達している可能性があります）");
+                Debug.LogWarning($"  座標({position.x}, {position.y})の畑は空です（容量制限に達している可能性があります）");
             }
             else
             {
                 var crops = targetField.GetAllCrops();
                 string cropInfo = string.Join(", ", crops.Select(kv => $"{GetResourceName(kv.Key)}×{kv.Value}"));
-                Debug.LogWarning($"  畑{fieldIndex + 1}の現在の状況: {cropInfo}");
+                Debug.LogWarning($"  座標({position.x}, {position.y})の現在の状況: {cropInfo}");
                 Debug.LogWarning($"  各畑には同じ作物を最大3個まで植えられます");
             }
             return false;
@@ -436,11 +512,24 @@ public class Player : MonoBehaviour
         SpendResource(cropType, 1);
         if (targetField.PlantCrop(cropType, 1))
         {
-            Debug.Log($"{playerName}が{GetResourceName(cropType)}1個を畑{fieldIndex + 1}に植えました");
+            Debug.Log($"{playerName}が{GetResourceName(cropType)}1個を座標({position.x}, {position.y})の畑に植えました");
             return true;
         }
         
         return false;
+    }
+    
+    // 種まき - 座標指定版（x, y個別指定）
+    public bool Sow(ResourceType cropType, int x, int y)
+    {
+        return Sow(cropType, new Vector2Int(x, y));
+    }
+    
+    // 座標の有効性をチェック
+    private bool IsValidPosition(Vector2Int position)
+    {
+        return position.x >= 0 && position.x < boardWidth && 
+               position.y >= 0 && position.y < boardHeight;
     }
     
     // 有効な作物種類かチェック
@@ -456,7 +545,7 @@ public class Player : MonoBehaviour
     public int GetEmptyFields()
     {
         int emptyCount = 0;
-        foreach (Field field in fieldList)
+        foreach (Field field in fieldMap.Values)
         {
             if (field.IsEmpty())
             {
@@ -475,8 +564,11 @@ public class Player : MonoBehaviour
         Dictionary<ResourceType, int> harvestedCrops = new Dictionary<ResourceType, int>();
         
         // 各畑から作物を収穫
-        foreach (Field field in fieldList)
+        foreach (var fieldKV in fieldMap)
         {
+            Vector2Int position = fieldKV.Key;
+            Field field = fieldKV.Value;
+            
             if (!field.IsEmpty())
             {
                 var fieldCrops = field.GetAllCrops();
@@ -493,6 +585,8 @@ public class Player : MonoBehaviour
                         {
                             // プレイヤーに作物を追加
                             ReceiveResourceDirect(cropType, harvestedAmount, null, "harvest");
+                            
+                            Debug.Log($"    座標({position.x}, {position.y})から{GetResourceName(cropType)}を1個収穫");
                             
                             // 統計用
                             if (!harvestedCrops.ContainsKey(cropType))
@@ -523,52 +617,98 @@ public class Player : MonoBehaviour
         TriggerOccupationEffects(OccupationTrigger.OnHarvest);
     }
     
-             // 畑の状態を確認するメソッド
+                         // 畑の状態を確認するメソッド（プレイヤーボードのグリッド表示）
     public void PrintFieldStatus()
     {
-        Debug.Log($"=== {playerName}の畑の状況 ===");
+        Debug.Log($"=== {playerName}のプレイヤーボード ===");
+        Debug.Log($"プレイヤーボードサイズ: {boardWidth}×{boardHeight}");
         Debug.Log($"畑の総数: {fields}個");
         Debug.Log($"空の畑: {GetEmptyFields()}個");
+        Debug.Log("");
         
-        for (int i = 0; i < fieldList.Count; i++)
+        // プレイヤーボードをグリッド形式で表示
+        Debug.Log("プレイヤーボード配置:");
+        for (int y = 0; y < boardHeight; y++)
         {
-            Field field = fieldList[i];
+            string row = $"  Y{y}: ";
+            for (int x = 0; x < boardWidth; x++)
+            {
+                Vector2Int position = new Vector2Int(x, y);
+                if (fieldMap.ContainsKey(position))
+                {
+                    Field field = fieldMap[position];
+                    if (field.IsEmpty())
+                    {
+                        row += "[空畑] ";
+                    }
+                    else
+                    {
+                        var crops = field.GetAllCrops();
+                        string cropInfo = string.Join(",", crops.Select(kv => $"{GetResourceShortName(kv.Key)}{kv.Value}"));
+                        row += $"[{cropInfo}] ";
+                    }
+                }
+                else
+                {
+                    row += "[----] ";
+                }
+            }
+            Debug.Log(row);
+        }
+        
+        Debug.Log("");
+        Debug.Log("座標軸: X0  X1  X2  X3  X4");
+        Debug.Log("");
+        Debug.Log("畑の詳細:");
+        foreach (var fieldKV in fieldMap)
+        {
+            Vector2Int position = fieldKV.Key;
+            Field field = fieldKV.Value;
             if (field.IsEmpty())
             {
-                Debug.Log($"  畑{i + 1}（インデックス{i}）: 空");
+                Debug.Log($"  座標({position.x},{position.y}): 空");
             }
             else
             {
                 var crops = field.GetAllCrops();
                 string cropInfo = string.Join(", ", crops.Select(kv => $"{GetResourceName(kv.Key)}×{kv.Value}"));
-                Debug.Log($"  畑{i + 1}（インデックス{i}）: {cropInfo}");
+                Debug.Log($"  座標({position.x},{position.y}): {cropInfo}");
             }
         }
+        
+        Debug.Log("");
         Debug.Log("使用例:");
-        Debug.Log("  player.Sow(ResourceType.Grain, 0);      // 穀物1個を畑1（インデックス0）に");
-        Debug.Log("  player.Sow(ResourceType.Vegetable, 1);  // 野菜1個を畑2（インデックス1）に");
+        Debug.Log("  player.Sow(ResourceType.Grain, 0, 0);      // 穀物1個を座標(0,0)に");
+        Debug.Log("  player.Sow(ResourceType.Vegetable, 1, 0);  // 野菜1個を座標(1,0)に");
+        Debug.Log("  player.AddField(2, 1);                     // 座標(2,1)に新しい畑を追加");
     }
     
-             // 種まきの使用例を表示するメソッド
+                     // 種まきの使用例を表示するメソッド
     public void ShowSowingExamples()
     {
         Debug.Log($"=== {playerName}の種まき使用例 ===");
-        Debug.Log("基本的な使い方（常に作物種類と畑位置を指定）:");
-        Debug.Log("  player.Sow(ResourceType.Grain, 0);        // 穀物1個を畑1（インデックス0）に");
-        Debug.Log("  player.Sow(ResourceType.Vegetable, 1);    // 野菜1個を畑2（インデックス1）に");
-        Debug.Log("  player.Sow(ResourceType.Wood, 2);         // 木1個を畑3（インデックス2）に");
-        Debug.Log("  player.Sow(ResourceType.Reed, 0);         // 葦1個を畑1（インデックス0）に");
-        Debug.Log("  player.Sow(ResourceType.Food, 1);         // 食料1個を畑2（インデックス1）に");
+        Debug.Log("基本的な使い方（常に作物種類と座標を指定）:");
+        Debug.Log("  player.Sow(ResourceType.Grain, 0, 0);        // 穀物1個を座標(0,0)に");
+        Debug.Log("  player.Sow(ResourceType.Vegetable, 1, 0);    // 野菜1個を座標(1,0)に");
+        Debug.Log("  player.Sow(ResourceType.Wood, 2, 0);         // 木1個を座標(2,0)に");
+        Debug.Log("  player.Sow(ResourceType.Reed, 0, 1);         // 葦1個を座標(0,1)に");
+        Debug.Log("  player.Sow(ResourceType.Food, 1, 1);         // 食料1個を座標(1,1)に");
         Debug.Log("");
-        Debug.Log("各畑には同じ作物を最大3個まで植えることができます。");
-        Debug.Log("畑のインデックスは0から始まります（畑1=インデックス0、畑2=インデックス1...）");
+        Debug.Log("畑の管理:");
+        Debug.Log("  player.AddField(2, 1);                       // 座標(2,1)に新しい畑を追加");
+        Debug.Log("  player.AddField();                           // 空いている座標に自動で畑を追加");
+        Debug.Log("");
+        Debug.Log("ルール:");
+        Debug.Log("- 各畑には同じ作物を最大3個まで植えることができます");
+        Debug.Log("- 座標は(x,y)形式で、x=0~4、y=0~2の範囲です");
+        Debug.Log("- 畑がない座標には種まきできません（まず畑を追加してください）");
     }
     
     // 特定の作物の合計数を畑から取得
     public int GetTotalCropsInFields(ResourceType cropType)
     {
         int total = 0;
-        foreach (Field field in fieldList)
+        foreach (Field field in fieldMap.Values)
         {
             total += field.GetCropCount(cropType);
         }
@@ -580,7 +720,7 @@ public class Player : MonoBehaviour
     {
         Dictionary<ResourceType, int> allCrops = new Dictionary<ResourceType, int>();
         
-        foreach (Field field in fieldList)
+        foreach (Field field in fieldMap.Values)
         {
             var fieldCrops = field.GetAllCrops();
             foreach (var cropKV in fieldCrops)
@@ -594,6 +734,24 @@ public class Player : MonoBehaviour
         return allCrops;
     }
     
+    // 指定座標の畑情報を取得
+    public Field GetFieldAt(Vector2Int position)
+    {
+        return fieldMap.ContainsKey(position) ? fieldMap[position] : null;
+    }
+    
+    // 指定座標の畑情報を取得（座標個別指定版）
+    public Field GetFieldAt(int x, int y)
+    {
+        return GetFieldAt(new Vector2Int(x, y));
+    }
+    
+    // プレイヤーボード上のすべての畑の座標を取得
+    public List<Vector2Int> GetAllFieldPositions()
+    {
+        return fieldMap.Keys.ToList();
+    }
+    
     // リソース名を日本語で取得（ログ用）
     private string GetResourceName(ResourceType resourceType)
     {
@@ -605,6 +763,20 @@ public class Player : MonoBehaviour
             case ResourceType.Reed: return "葦";
             case ResourceType.Food: return "食料";
             default: return resourceType.ToString();
+        }
+    }
+    
+    // リソース名を短縮形で取得（グリッド表示用）
+    private string GetResourceShortName(ResourceType resourceType)
+    {
+        switch (resourceType)
+        {
+            case ResourceType.Grain: return "穀";
+            case ResourceType.Vegetable: return "野";
+            case ResourceType.Wood: return "木";
+            case ResourceType.Reed: return "葦";
+            case ResourceType.Food: return "食";
+            default: return resourceType.ToString().Substring(0, 1);
         }
     }
     
