@@ -100,8 +100,10 @@ public class Player : MonoBehaviour
     [SerializeField] private int stables = 0;       // 小屋の数
     
     [Header("プレイヤータイル座標設定")]
-    [SerializeField] private int boardWidth = 5;    // プレイヤーボードの幅
-    [SerializeField] private int boardHeight = 3;   // プレイヤーボードの高さ
+    [SerializeField] private int boardMinX = 2;     // プレイヤーボードのX座標最小値
+    [SerializeField] private int boardMaxX = 8;     // プレイヤーボードのX座標最大値
+    [SerializeField] private int boardMinY = 2;     // プレイヤーボードのY座標最小値
+    [SerializeField] private int boardMaxY = 6;     // プレイヤーボードのY座標最大値
     
     [Header("カード")]
     [SerializeField] private List<Card> hand = new List<Card>();
@@ -146,11 +148,11 @@ public class Player : MonoBehaviour
         
         // デフォルトの畑位置を設定（プレイヤーボード上の特定の座標）
         Vector2Int[] defaultFieldPositions = {
-            new Vector2Int(0, 0), // 畑1
-            new Vector2Int(1, 0), // 畑2
-            new Vector2Int(2, 0), // 畑3
-            new Vector2Int(0, 1), // 畑4
-            new Vector2Int(1, 1), // 畑5
+            new Vector2Int(2, 2), // 畑1
+            new Vector2Int(3, 2), // 畑2
+            new Vector2Int(4, 2), // 畑3
+            new Vector2Int(2, 3), // 畑4
+            new Vector2Int(3, 3), // 畑5
         };
         
         for (int i = 0; i < fields && i < defaultFieldPositions.Length; i++)
@@ -439,9 +441,9 @@ public class Player : MonoBehaviour
     public bool AddField()
     {
         // 空いている座標を探して畑を追加
-        for (int y = 0; y < boardHeight; y++)
+        for (int y = boardMinY; y <= boardMaxY; y++)
         {
-            for (int x = 0; x < boardWidth; x++)
+            for (int x = boardMinX; x <= boardMaxX; x++)
             {
                 Vector2Int position = new Vector2Int(x, y);
                 if (IsValidPosition(position) && !fieldMap.ContainsKey(position))
@@ -468,7 +470,7 @@ public class Player : MonoBehaviour
         // 座標が有効かチェック
         if (!IsValidPosition(position))
         {
-            Debug.LogWarning($"無効な座標です: ({position.x}, {position.y})（有効範囲: 0-{boardWidth-1}, 0-{boardHeight-1}）");
+            Debug.LogWarning($"無効な座標です: ({position.x}, {position.y})（有効範囲: X={boardMinX}-{boardMaxX}, Y={boardMinY}-{boardMaxY}）");
             return false;
         }
         
@@ -528,8 +530,8 @@ public class Player : MonoBehaviour
     // 座標の有効性をチェック
     private bool IsValidPosition(Vector2Int position)
     {
-        return position.x >= 0 && position.x < boardWidth && 
-               position.y >= 0 && position.y < boardHeight;
+        return position.x >= boardMinX && position.x <= boardMaxX && 
+               position.y >= boardMinY && position.y <= boardMaxY;
     }
     
     // 有効な作物種類かチェック
@@ -620,7 +622,11 @@ public class Player : MonoBehaviour
                          // 畑の状態を確認するメソッド（プレイヤーボードのグリッド表示）
     public void PrintFieldStatus()
     {
+        int boardWidth = boardMaxX - boardMinX + 1;
+        int boardHeight = boardMaxY - boardMinY + 1;
+        
         Debug.Log($"=== {playerName}のプレイヤーボード ===");
+        Debug.Log($"プレイヤーボード座標範囲: X={boardMinX}-{boardMaxX}, Y={boardMinY}-{boardMaxY}");
         Debug.Log($"プレイヤーボードサイズ: {boardWidth}×{boardHeight}");
         Debug.Log($"畑の総数: {fields}個");
         Debug.Log($"空の畑: {GetEmptyFields()}個");
@@ -628,10 +634,10 @@ public class Player : MonoBehaviour
         
         // プレイヤーボードをグリッド形式で表示
         Debug.Log("プレイヤーボード配置:");
-        for (int y = 0; y < boardHeight; y++)
+        for (int y = boardMinY; y <= boardMaxY; y++)
         {
             string row = $"  Y{y}: ";
-            for (int x = 0; x < boardWidth; x++)
+            for (int x = boardMinX; x <= boardMaxX; x++)
             {
                 Vector2Int position = new Vector2Int(x, y);
                 if (fieldMap.ContainsKey(position))
@@ -657,7 +663,12 @@ public class Player : MonoBehaviour
         }
         
         Debug.Log("");
-        Debug.Log("座標軸: X0  X1  X2  X3  X4");
+        string axisLabels = "座標軸: ";
+        for (int x = boardMinX; x <= boardMaxX; x++)
+        {
+            axisLabels += $"X{x}  ";
+        }
+        Debug.Log(axisLabels);
         Debug.Log("");
         Debug.Log("畑の詳細:");
         foreach (var fieldKV in fieldMap)
@@ -678,9 +689,9 @@ public class Player : MonoBehaviour
         
         Debug.Log("");
         Debug.Log("使用例:");
-        Debug.Log("  player.Sow(ResourceType.Grain, 0, 0);      // 穀物1個を座標(0,0)に");
-        Debug.Log("  player.Sow(ResourceType.Vegetable, 1, 0);  // 野菜1個を座標(1,0)に");
-        Debug.Log("  player.AddField(2, 1);                     // 座標(2,1)に新しい畑を追加");
+        Debug.Log("  player.Sow(ResourceType.Grain, 2, 2);      // 穀物1個を座標(2,2)に");
+        Debug.Log("  player.Sow(ResourceType.Vegetable, 3, 2);  // 野菜1個を座標(3,2)に");
+        Debug.Log("  player.AddField(4, 3);                     // 座標(4,3)に新しい畑を追加");
     }
     
                      // 種まきの使用例を表示するメソッド
@@ -688,19 +699,19 @@ public class Player : MonoBehaviour
     {
         Debug.Log($"=== {playerName}の種まき使用例 ===");
         Debug.Log("基本的な使い方（常に作物種類と座標を指定）:");
-        Debug.Log("  player.Sow(ResourceType.Grain, 0, 0);        // 穀物1個を座標(0,0)に");
-        Debug.Log("  player.Sow(ResourceType.Vegetable, 1, 0);    // 野菜1個を座標(1,0)に");
-        Debug.Log("  player.Sow(ResourceType.Wood, 2, 0);         // 木1個を座標(2,0)に");
-        Debug.Log("  player.Sow(ResourceType.Reed, 0, 1);         // 葦1個を座標(0,1)に");
-        Debug.Log("  player.Sow(ResourceType.Food, 1, 1);         // 食料1個を座標(1,1)に");
+        Debug.Log("  player.Sow(ResourceType.Grain, 2, 2);        // 穀物1個を座標(2,2)に");
+        Debug.Log("  player.Sow(ResourceType.Vegetable, 3, 2);    // 野菜1個を座標(3,2)に");
+        Debug.Log("  player.Sow(ResourceType.Wood, 4, 2);         // 木1個を座標(4,2)に");
+        Debug.Log("  player.Sow(ResourceType.Reed, 2, 3);         // 葦1個を座標(2,3)に");
+        Debug.Log("  player.Sow(ResourceType.Food, 3, 3);         // 食料1個を座標(3,3)に");
         Debug.Log("");
         Debug.Log("畑の管理:");
-        Debug.Log("  player.AddField(2, 1);                       // 座標(2,1)に新しい畑を追加");
+        Debug.Log("  player.AddField(4, 3);                       // 座標(4,3)に新しい畑を追加");
         Debug.Log("  player.AddField();                           // 空いている座標に自動で畑を追加");
         Debug.Log("");
         Debug.Log("ルール:");
         Debug.Log("- 各畑には同じ作物を最大3個まで植えることができます");
-        Debug.Log("- 座標は(x,y)形式で、x=0~4、y=0~2の範囲です");
+        Debug.Log($"- 座標は(x,y)形式で、x={boardMinX}~{boardMaxX}、y={boardMinY}~{boardMaxY}の範囲です");
         Debug.Log("- 畑がない座標には種まきできません（まず畑を追加してください）");
     }
     
