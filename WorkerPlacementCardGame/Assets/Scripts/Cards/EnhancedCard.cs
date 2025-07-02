@@ -254,10 +254,10 @@ public abstract class EnhancedCard : ScriptableObject
     
     protected virtual void ExecuteEffect(Player player, CardEffect effect)
     {
-        // リソース獲得
+        // リソース獲得（カード効果として取得）
         foreach (var resource in effect.resourceGain)
         {
-            player.AddResource(resource.Key, resource.Value);
+            player.TakeResourceFromCardEffect(resource.Key, resource.Value, cardName);
         }
         
         // リソースコスト

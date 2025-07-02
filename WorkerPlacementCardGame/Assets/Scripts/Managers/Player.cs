@@ -71,7 +71,18 @@ public class Player : MonoBehaviour
         return resources.ContainsKey(type) ? resources[type] : 0;
     }
     
+    /// <summary>
+    /// リソースを追加（OnReceiveトリガー付き）
+    /// </summary>
     public void AddResource(ResourceType type, int amount)
+    {
+        AddResourceInternal(type, amount, true);
+    }
+    
+    /// <summary>
+    /// リソースを追加（内部用、トリガー制御可能）
+    /// </summary>
+    private void AddResourceInternal(ResourceType type, int amount, bool triggerReceiveEffects = true)
     {
         if (!resources.ContainsKey(type))
             resources[type] = 0;
@@ -80,6 +91,129 @@ public class Player : MonoBehaviour
         resources[type] = Mathf.Max(0, resources[type]);
         
         OnResourceChanged?.Invoke(type, resources[type]);
+        
+        // OnReceiveトリガーを発動（リソースが手持ちに入ったとき）
+        if (amount > 0 && triggerReceiveEffects)
+        {
+            TriggerOnReceiveEffects(type, amount);
+        }
+    }
+    
+    /// <summary>
+    /// アクションスペースからリソースを取得する（OnTake→OnReceiveの順で発動）
+    /// </summary>
+    public void TakeResourceFromAction(ResourceType type, int amount, ActionSpace actionSpace)
+    {
+        // 1. OnTakeトリガーを発動（アイテムを取得したとき）
+        TriggerOnTakeEffects(type, amount, actionSpace, "action");
+        
+        // 2. 実際にリソースを追加（OnReceiveトリガーなし）
+        AddResourceInternal(type, amount, false);
+        
+        // 3. OnReceiveトリガーを発動（アイテムが手持ちに入ったとき）
+        TriggerOnReceiveEffects(type, amount, null, "take_action");
+        
+        Debug.Log($"{playerName}が{actionSpace.actionName}から{type}{amount}個を取得しました（Take→Receive）");
+    }
+    
+    /// <summary>
+    /// カード効果でリソースを取得する（OnTake→OnReceiveの順で発動）
+    /// </summary>
+    public void TakeResourceFromCardEffect(ResourceType type, int amount, string cardName = "")
+    {
+        // 1. OnTakeトリガーを発動
+        TriggerOnTakeEffects(type, amount, null, "card_effect");
+        
+        // 2. 実際にリソースを追加（OnReceiveトリガーなし）
+        AddResourceInternal(type, amount, false);
+        
+        // 3. OnReceiveトリガーを発動
+        TriggerOnReceiveEffects(type, amount, null, "take_card_effect");
+        
+        Debug.Log($"{playerName}がカード効果「{cardName}」から{type}{amount}個を取得しました（Take→Receive）");
+    }
+    
+    /// <summary>
+    /// 直接リソースを受け取る（OnReceiveトリガーのみ発動）
+    /// </summary>
+    public void ReceiveResourceDirect(ResourceType type, int amount, Player sourcePlayer = null, string method = "direct")
+    {
+        // 1. 実際にリソースを追加（OnReceiveトリガーなし）
+        AddResourceInternal(type, amount, false);
+        
+        // 2. OnReceiveトリガーを発動
+        TriggerOnReceiveEffects(type, amount, sourcePlayer, method);
+        
+        string source = sourcePlayer != null ? $"{sourcePlayer.playerName}から" : "";
+        Debug.Log($"{playerName}が{source}{type}{amount}個を受け取りました（Receiveのみ）");
+    }
+    
+    /// <summary>
+    /// OnTakeトリガー効果を発動（無限ループ防止付き）
+    /// </summary>
+    private void TriggerOnTakeEffects(ResourceType resourceType, int amount, ActionSpace actionSpace, string method)
+    {
+        // 無限ループ防止
+        if (isTriggeringOnTake)
+        {
+            Debug.LogWarning($"OnTakeトリガーの無限ループを防止しました: {resourceType} {amount}個");
+            return;
+        }
+        
+        isTriggeringOnTake = true;
+        
+        try
+        {
+            var takeContext = new CardTriggerManager.TakeEventContext(this, resourceType, amount, actionSpace, method);
+            
+            // 職業効果のトリガー
+            TriggerOccupationEffects(OccupationTrigger.OnTake, takeContext);
+            
+            // GameManagerのCardTriggerManagerを使用してトリガー効果を発動
+            GameManager gameManager = FindObjectOfType<GameManager>();
+            if (gameManager != null)
+            {
+                gameManager.ExecuteAllTriggerableCards(OccupationTrigger.OnTake, this, actionSpace);
+            }
+        }
+        finally
+        {
+            isTriggeringOnTake = false;
+        }
+    }
+    
+    /// <summary>
+    /// OnReceiveトリガー効果を発動（無限ループ防止付き）
+    /// </summary>
+    private void TriggerOnReceiveEffects(ResourceType resourceType, int amount, Player sourcePlayer = null, string method = "direct")
+    {
+        // 無限ループ防止
+        if (isTriggeringOnReceive)
+        {
+            Debug.LogWarning($"OnReceiveトリガーの無限ループを防止しました: {resourceType} {amount}個");
+            return;
+        }
+        
+        isTriggeringOnReceive = true;
+        
+        try
+        {
+            var receiveContext = new CardTriggerManager.ReceiveEventContext(this, resourceType, amount, sourcePlayer, method);
+            
+            // 職業効果のトリガー
+            TriggerOccupationEffects(OccupationTrigger.OnReceive, receiveContext);
+            
+            // GameManagerのCardTriggerManagerを使用してトリガー効果を発動
+            GameManager gameManager = FindObjectOfType<GameManager>();
+            if (gameManager != null)
+            {
+                gameManager.ExecuteAllTriggerableCards(OccupationTrigger.OnReceive, this);
+            }
+        }
+        finally
+        {
+            isTriggeringOnReceive = false;
+        }
     }
     
     public bool SpendResource(ResourceType type, int amount)
@@ -213,10 +347,10 @@ public class Player : MonoBehaviour
     // 収穫
     public void HarvestCrops()
     {
-        // 簡略化：畑の数だけ穀物を獲得
+        // 簡略化：畑の数だけ穀物を獲得（収穫による直接受取）
         if (fields > 0)
         {
-            AddResource(ResourceType.Grain, fields);
+            ReceiveResourceDirect(ResourceType.Grain, fields, null, "harvest");
         }
         
         // 職業効果のトリガー
@@ -236,15 +370,15 @@ public class Player : MonoBehaviour
     // 動物の繁殖
     public void BreedAnimals()
     {
-        // 各動物種で2匹以上いれば1匹増える
+        // 各動物種で2匹以上いれば1匹増える（繁殖による直接受取）
         if (GetResource(ResourceType.Sheep) >= 2 && CanHouseAnimals(ResourceType.Sheep, 1))
-            AddResource(ResourceType.Sheep, 1);
+            ReceiveResourceDirect(ResourceType.Sheep, 1, null, "breeding");
             
         if (GetResource(ResourceType.Boar) >= 2 && CanHouseAnimals(ResourceType.Boar, 1))
-            AddResource(ResourceType.Boar, 1);
+            ReceiveResourceDirect(ResourceType.Boar, 1, null, "breeding");
             
         if (GetResource(ResourceType.Cattle) >= 2 && CanHouseAnimals(ResourceType.Cattle, 1))
-            AddResource(ResourceType.Cattle, 1);
+            ReceiveResourceDirect(ResourceType.Cattle, 1, null, "breeding");
         
         // 職業効果のトリガー
         TriggerOccupationEffects(OccupationTrigger.OnBreeding);
@@ -321,10 +455,57 @@ public class Player : MonoBehaviour
             hand.Remove(card);
             playedCards.Add(card);
             
+            // カードの効果を実行（EnhancedCardの場合）
+            if (card is EnhancedCard enhancedCard)
+            {
+                enhancedCard.PlayCard(this);
+                
+                // GameManagerのCardTriggerManagerに新しいカードを通知
+                GameManager gameManager = FindObjectOfType<GameManager>();
+                if (gameManager != null)
+                {
+                    // 即座トリガー以外の効果をトリガー可能一覧に追加
+                    RegisterCardEffectsToTriggerManager(enhancedCard, gameManager);
+                }
+            }
+            
             OnCardPlayed?.Invoke(card);
             return true;
         }
         return false;
+    }
+    
+    /// <summary>
+    /// カードの効果をCardTriggerManagerに登録
+    /// </summary>
+    private void RegisterCardEffectsToTriggerManager(EnhancedCard card, GameManager gameManager)
+    {
+        // CardTriggerManagerを取得
+        CardTriggerManager triggerManager = gameManager.GetComponent<CardTriggerManager>();
+        if (triggerManager == null)
+        {
+            triggerManager = FindObjectOfType<CardTriggerManager>();
+        }
+        
+        if (triggerManager != null)
+        {
+            // 新しいカードの効果を詳細分析
+            triggerManager.AnalyzeNewCard(card, this);
+            
+            // トリガー可能カード一覧の更新をログ出力
+            Debug.Log($"{playerName}が「{card.cardName}」を獲得。トリガー可能カード一覧が更新されました。");
+        }
+        else
+        {
+            // フォールバック：基本的なログ出力
+            foreach (var effect in card.effects)
+            {
+                if (effect.triggerType != OccupationTrigger.Immediate)
+                {
+                    Debug.Log($"カード「{card.cardName}」の{effect.triggerType}トリガー効果「{effect.effectDescription}」がトリガー可能一覧に追加されました");
+                }
+            }
+        }
     }
     
     public void DrawCards(int count)
@@ -385,6 +566,10 @@ public class Player : MonoBehaviour
     // 一時的ボーナス管理（5人プレイ特殊アクション用）
     private Dictionary<string, int> tempBonuses = new Dictionary<string, int>();
     
+    // トリガー実行中フラグ（無限ループ防止）
+    private bool isTriggeringOnTake = false;
+    private bool isTriggeringOnReceive = false;
+    
     // カード効果管理
     private List<CardEffect> passiveEffects = new List<CardEffect>();
     private List<CardEffect> actionModifiers = new List<CardEffect>();
@@ -417,6 +602,16 @@ public class Player : MonoBehaviour
         {
             occupations.Add(occupation);
             Debug.Log($"{playerName}が職業「{occupation.cardName}」を獲得しました");
+            
+            // EnhancedCardの場合、トリガー可能一覧に追加
+            if (occupation is EnhancedCard enhancedOccupation)
+            {
+                GameManager gameManager = FindObjectOfType<GameManager>();
+                if (gameManager != null)
+                {
+                    RegisterCardEffectsToTriggerManager(enhancedOccupation, gameManager);
+                }
+            }
         }
     }
     
@@ -442,6 +637,16 @@ public class Player : MonoBehaviour
         {
             improvements.Add(improvement);
             Debug.Log($"{playerName}が進歩「{improvement.cardName}」を獲得しました");
+            
+            // EnhancedCardの場合、トリガー可能一覧に追加
+            if (improvement is EnhancedCard enhancedImprovement)
+            {
+                GameManager gameManager = FindObjectOfType<GameManager>();
+                if (gameManager != null)
+                {
+                    RegisterCardEffectsToTriggerManager(enhancedImprovement, gameManager);
+                }
+            }
         }
     }
     
@@ -600,5 +805,33 @@ public class Player : MonoBehaviour
         {
             effect.ResetUses();
         }
+    }
+    
+    /// <summary>
+    /// 新しいトリガーシステムのテスト用メソッド
+    /// </summary>
+    public void TestNewTriggerSystem()
+    {
+        Debug.Log("=== 新しいトリガーシステムのテスト開始 ===");
+        
+        // 1. アクションスペースからの取得テスト（Take→Receive）
+        Debug.Log("1. アクションスペースからの取得テスト");
+        ActionSpace testActionSpace = new ActionSpace();
+        testActionSpace.actionName = "テスト木材獲得";
+        TakeResourceFromAction(ResourceType.Wood, 2, testActionSpace);
+        
+        // 2. カード効果での取得テスト（Take→Receive）
+        Debug.Log("2. カード効果での取得テスト");
+        TakeResourceFromCardEffect(ResourceType.Clay, 1, "テストカード");
+        
+        // 3. 直接受取テスト（Receiveのみ）
+        Debug.Log("3. 直接受取テスト");
+        ReceiveResourceDirect(ResourceType.Food, 3, null, "test_direct");
+        
+        // 4. 通常のAddResourceテスト（Receiveのみ）
+        Debug.Log("4. 通常のAddResourceテスト");
+        AddResource(ResourceType.Grain, 1);
+        
+        Debug.Log("=== 新しいトリガーシステムのテスト完了 ===");
     }
 }

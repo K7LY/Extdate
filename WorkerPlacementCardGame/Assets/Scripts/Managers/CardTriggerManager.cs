@@ -43,6 +43,42 @@ public class CardTriggerManager : MonoBehaviour
         }
     }
     
+    [System.Serializable]
+    public class TakeEventContext : EventContext
+    {
+        public ResourceType resourceType;
+        public int amount;
+        public ActionSpace sourceActionSpace;
+        public string takeMethod; // "action", "card_effect", "trade", etc.
+        
+        public TakeEventContext(Player player, ResourceType resource, int amt, ActionSpace source = null, string method = "action") 
+            : base(OccupationTrigger.OnTake, player)
+        {
+            resourceType = resource;
+            amount = amt;
+            sourceActionSpace = source;
+            takeMethod = method;
+        }
+    }
+    
+    [System.Serializable]
+    public class ReceiveEventContext : EventContext
+    {
+        public ResourceType resourceType;
+        public int amount;
+        public Player sourcePlayer; // リソースの提供者（トレードの場合など）
+        public string receiveMethod; // "direct", "trade", "card_effect", "passive", etc.
+        
+        public ReceiveEventContext(Player player, ResourceType resource, int amt, Player source = null, string method = "direct") 
+            : base(OccupationTrigger.OnReceive, player)
+        {
+            resourceType = resource;
+            amount = amt;
+            sourcePlayer = source;
+            receiveMethod = method;
+        }
+    }
+    
     private GameManager gameManager;
     
     void Start()
@@ -176,6 +212,55 @@ public class CardTriggerManager : MonoBehaviour
             {
                 return false;
             }
+            
+            // OnTakeトリガーの特殊条件チェック
+            if (context is TakeEventContext takeContext)
+            {
+                // 特定のリソースタイプのみに反応する効果
+                if (effect.triggerCondition != null && !string.IsNullOrEmpty(effect.triggerCondition))
+                {
+                    if (!effect.triggerCondition.Contains(takeContext.resourceType.ToString()))
+                    {
+                        return false;
+                    }
+                }
+                
+                // 特定の取得方法のみに反応する効果
+                if (effect.specialEffectData != null && effect.specialEffectData.Contains("take_method:"))
+                {
+                    string requiredMethod = effect.specialEffectData.Split(':')[1];
+                    if (takeContext.takeMethod != requiredMethod)
+                    {
+                        return false;
+                    }
+                }
+            }
+            
+            // OnReceiveトリガーの特殊条件チェック
+            if (context is ReceiveEventContext receiveContext)
+            {
+                // 特定のリソースタイプのみに反応する効果
+                if (effect.triggerCondition != null && !string.IsNullOrEmpty(effect.triggerCondition))
+                {
+                    if (!effect.triggerCondition.Contains(receiveContext.resourceType.ToString()))
+                    {
+                        return false;
+                    }
+                }
+                
+                // 最小受け取り量の条件チェック
+                if (effect.specialEffectData != null && effect.specialEffectData.Contains("min_amount:"))
+                {
+                    string[] parts = effect.specialEffectData.Split(':');
+                    if (parts.Length > 1 && int.TryParse(parts[1], out int minAmount))
+                    {
+                        if (receiveContext.amount < minAmount)
+                        {
+                            return false;
+                        }
+                    }
+                }
+            }
         }
         
         return true;
@@ -283,5 +368,55 @@ public class CardTriggerManager : MonoBehaviour
         }
         
         Debug.Log($"総数: {triggerableCards.Count}個（実行可能: {triggerableCards.Count(tc => tc.canTrigger)}個）");
+    }
+    
+    /// <summary>
+    /// 新しく追加されたカードのトリガー可能な効果を確認し、ログに出力
+    /// </summary>
+    public void AnalyzeNewCard(EnhancedCard card, Player owner)
+    {
+        Debug.Log($"=== 新しいカード「{card.cardName}」の効果分析 ===");
+        
+        foreach (var effect in card.effects)
+        {
+            EventContext context = new EventContext(effect.triggerType, owner);
+            bool canTrigger = CanTriggerEffect(card, effect, owner, context);
+            string reason = GetTriggerReason(card, effect, owner, context, canTrigger);
+            
+            string status = canTrigger ? "[利用可能]" : "[条件待ち]";
+            Debug.Log($"{status} {effect.triggerType}トリガー: {effect.effectDescription} ({reason})");
+        }
+    }
+    
+    /// <summary>
+    /// 全プレイヤーの現在のトリガー可能カード状況をサマリー表示
+    /// </summary>
+    public void DebugPrintTriggerSummary()
+    {
+        if (gameManager == null) return;
+        
+        Debug.Log("=== 全プレイヤーのトリガー可能カード サマリー ===");
+        
+        foreach (Player player in gameManager.GetPlayers())
+        {
+            List<EnhancedCard> enhancedCards = GetEnhancedCardsFromPlayer(player);
+            int totalEffects = 0;
+            int availableEffects = 0;
+            
+            foreach (EnhancedCard card in enhancedCards)
+            {
+                foreach (var effect in card.effects)
+                {
+                    totalEffects++;
+                    EventContext context = new EventContext(effect.triggerType, player);
+                    if (CanTriggerEffect(card, effect, player, context))
+                    {
+                        availableEffects++;
+                    }
+                }
+            }
+            
+            Debug.Log($"🎮 {player.playerName}: {enhancedCards.Count}枚のカード, {totalEffects}個の効果 (利用可能: {availableEffects}個)");
+        }
     }
 }

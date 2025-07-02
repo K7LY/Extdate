@@ -35,6 +35,8 @@ public enum OccupationTrigger
     OnBreeding,     // 繁殖時
     OnTurnEnd,      // ターン終了時
     OnRoundStart,   // ラウンド開始時
+    OnTake,         // アイテムを取得したとき
+    OnReceive,      // アイテムが手持ちに入ったとき
     Passive         // 継続効果
 }
 
@@ -223,6 +225,14 @@ public class OccupationCard : Card
             case OccupationTrigger.OnTurnEnd:
                 OnTurnEndTrigger(player, context);
                 break;
+                
+            case OccupationTrigger.OnTake:
+                OnTakeTrigger(player, context);
+                break;
+                
+            case OccupationTrigger.OnReceive:
+                OnReceiveTrigger(player, context);
+                break;
         }
     }
     
@@ -281,5 +291,65 @@ public class OccupationCard : Card
     private void OnTurnEndTrigger(Player player, object context)
     {
         // ターン終了時の効果処理
+    }
+    
+    private void OnTakeTrigger(Player player, object context)
+    {
+        // アイテムを取得したときの効果処理
+        // contextにはTakeEventContextが渡される
+        if (context is TakeEventContext takeContext)
+        {
+            switch (occupationType)
+            {
+                case OccupationType.Trader:
+                    // 商人: アイテム取得時に追加リソース
+                    if (takeContext.resourceType == ResourceType.Wood || 
+                        takeContext.resourceType == ResourceType.Clay ||
+                        takeContext.resourceType == ResourceType.Stone)
+                    {
+                        player.AddResource(ResourceType.Food, 1);
+                        Debug.Log($"商人効果発動: 建材取得時に食料1個獲得");
+                    }
+                    break;
+                    
+                case OccupationType.Forester:
+                    // 森林管理人: 木材取得時に追加木材
+                    if (takeContext.resourceType == ResourceType.Wood)
+                    {
+                        player.AddResource(ResourceType.Wood, 1);
+                        Debug.Log($"森林管理人効果発動: 木材取得時に追加木材1個獲得");
+                    }
+                    break;
+            }
+        }
+    }
+    
+    private void OnReceiveTrigger(Player player, object context)
+    {
+        // アイテムが手持ちに入ったときの効果処理
+        // contextにはReceiveEventContextが渡される
+        if (context is ReceiveEventContext receiveContext)
+        {
+            switch (occupationType)
+            {
+                case OccupationType.Scholar:
+                    // 学者: 任意のリソースを受け取ったときに勝利点獲得
+                    if (receiveContext.amount >= 3)
+                    {
+                        player.AddVictoryPoints(1);
+                        Debug.Log($"学者効果発動: 大量リソース受取時に勝利点1点獲得");
+                    }
+                    break;
+                    
+                case OccupationType.Merchant:
+                    // 大商人: 食料以外のリソースを受け取ったときに食料変換
+                    if (receiveContext.resourceType != ResourceType.Food && receiveContext.amount >= 2)
+                    {
+                        player.AddResource(ResourceType.Food, receiveContext.amount / 2);
+                        Debug.Log($"大商人効果発動: リソース受取時に食料{receiveContext.amount / 2}個変換獲得");
+                    }
+                    break;
+            }
+        }
     }
 }
