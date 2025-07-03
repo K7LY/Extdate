@@ -3,6 +3,74 @@ using System.Collections.Generic;
 using System.Linq;
 
 [System.Serializable]
+public class Field
+{
+    public Vector2Int position; // プレイヤータイル上の座標
+    public Dictionary<ResourceType, int> crops = new Dictionary<ResourceType, int>();
+    
+    public Field(Vector2Int pos)
+    {
+        position = pos;
+    }
+    
+    public Field(int x, int y)
+    {
+        position = new Vector2Int(x, y);
+    }
+    
+    public bool IsEmpty()
+    {
+        return crops.Count == 0 || crops.Values.All(count => count == 0);
+    }
+    
+    public bool CanPlantCrop(ResourceType cropType, int amount)
+    {
+        // 各畑には最大3個まで同じ作物を植えられる（Agricola風）
+        int currentAmount = crops.ContainsKey(cropType) ? crops[cropType] : 0;
+        return currentAmount + amount <= 3;
+    }
+    
+    public bool PlantCrop(ResourceType cropType, int amount)
+    {
+        if (!CanPlantCrop(cropType, amount)) return false;
+        
+        if (!crops.ContainsKey(cropType))
+            crops[cropType] = 0;
+        crops[cropType] += amount;
+        return true;
+    }
+    
+    public int HarvestCrop(ResourceType cropType, int maxAmount = int.MaxValue)
+    {
+        if (!crops.ContainsKey(cropType) || crops[cropType] == 0)
+            return 0;
+            
+        int harvestedAmount = Mathf.Min(crops[cropType], maxAmount);
+        crops[cropType] -= harvestedAmount;
+        
+        if (crops[cropType] == 0)
+            crops.Remove(cropType);
+            
+        return harvestedAmount;
+    }
+    
+    public Dictionary<ResourceType, int> GetAllCrops()
+    {
+        return new Dictionary<ResourceType, int>(crops);
+    }
+    
+    public int GetCropCount(ResourceType cropType)
+    {
+        return crops.ContainsKey(cropType) ? crops[cropType] : 0;
+    }
+    
+    public List<ResourceType> GetCropTypes()
+    {
+        return crops.Keys.ToList();
+    }
+}
+
+[System.Serializable]
 public class Player : MonoBehaviour
 {
     [Header("プレイヤー情報")]
@@ -25,10 +93,21 @@ public class Player : MonoBehaviour
     [SerializeField] private int rooms = 2; // 初期は2部屋
     
     [Header("農場")]
-    [SerializeField] private int fields = 0;        // 畑の数
+    [SerializeField] private int fields = 0;        // 畑の数（後方互換性のため保持）
+    [SerializeField] private Dictionary<Vector2Int, Field> fieldMap = new Dictionary<Vector2Int, Field>(); // 座標ベースの畑管理
     [SerializeField] private int pastures = 0;      // 牧場の数
     [SerializeField] private int fences = 0;        // 柵の数
     [SerializeField] private int stables = 0;       // 小屋の数
+    
+    [Header("プレイヤータイル座標設定")]
+    [SerializeField] private int boardMinX = 0;     // プレイヤーボードのX座標最小値（拡張後）
+    [SerializeField] private int boardMaxX = 8;     // プレイヤーボードのX座標最大値（拡張後）
+    [SerializeField] private int boardMinY = 0;     // プレイヤーボードのY座標最小値（拡張後）
+    [SerializeField] private int boardMaxY = 6;     // プレイヤーボードのY座標最大値（拡張後）
+    [SerializeField] private int baseBoardMinX = 2; // 基本ボードのX座標最小値
+    [SerializeField] private int baseBoardMaxX = 6; // 基本ボードのX座標最大値
+    [SerializeField] private int baseBoardMinY = 2; // 基本ボードのY座標最小値
+    [SerializeField] private int baseBoardMaxY = 4; // 基本ボードのY座標最大値
     
     [Header("カード")]
     [SerializeField] private List<Card> hand = new List<Card>();
@@ -47,6 +126,7 @@ public class Player : MonoBehaviour
     void Start()
     {
         InitializeResources();
+        InitializeFields();
         availableWorkers = familyMembers;
     }
     
@@ -63,6 +143,17 @@ public class Player : MonoBehaviour
         resources[ResourceType.Boar] = 0;
         resources[ResourceType.Cattle] = 0;
         resources[ResourceType.Food] = 0;
+    }
+    
+    private void InitializeFields()
+    {
+        // 畑は初期ゼロ、ゲーム中に追加していく
+        fieldMap.Clear();
+        fields = 0;
+        
+        Debug.Log($"{playerName}のプレイヤーボードを初期化しました（初期畑数: 0個）");
+        Debug.Log($"基本ボード範囲: X={baseBoardMinX}-{baseBoardMaxX}, Y={baseBoardMinY}-{baseBoardMaxY}");
+        Debug.Log($"拡張可能範囲: X={boardMinX}-{boardMaxX}, Y={boardMinY}-{boardMaxY}");
     }
     
     // リソース管理
@@ -308,53 +399,430 @@ public class Player : MonoBehaviour
         return false;
     }
     
-    // 畑の追加
-    public bool AddField()
+    // 畑の追加（指定座標に）
+    public bool AddField(Vector2Int position)
     {
+        // 座標が有効かチェック
+        if (!IsValidPosition(position))
+        {
+            Debug.LogWarning($"無効な座標です: ({position.x}, {position.y})");
+            Debug.LogWarning($"有効範囲: X={boardMinX}-{boardMaxX}, Y={boardMinY}-{boardMaxY}");
+            Debug.LogWarning($"基本ボード: X={baseBoardMinX}-{baseBoardMaxX}, Y={baseBoardMinY}-{baseBoardMaxY}");
+            return false;
+        }
+        
+        // 既に畑があるかチェック
+        if (fieldMap.ContainsKey(position))
+        {
+            Debug.LogWarning($"座標({position.x}, {position.y})には既に畑があります");
+            return false;
+        }
+        
+        // 畑を追加
         fields++;
+        fieldMap[position] = new Field(position);
+        
+        // 追加場所の情報を表示
+        string areaInfo = IsInBaseBoard(position) ? "基本ボード" : "拡張エリア";
+        Debug.Log($"{playerName}が座標({position.x}, {position.y})の{areaInfo}に新しい畑を追加しました（合計: {fields}個）");
+        
         return true; // Agricolaでは畑の追加は無料
     }
     
-    // 種まき
-    public bool SowGrain(int amount)
+    // 畑の追加（座標指定版）
+    public bool AddField(int x, int y)
     {
-        if (GetResource(ResourceType.Grain) >= amount && fields > 0)
+        return AddField(new Vector2Int(x, y));
+    }
+    
+    // 畑の追加（従来版 - 自動座標選択）
+    public bool AddField()
+    {
+        // 空いている座標を探して畑を追加
+        for (int y = boardMinY; y <= boardMaxY; y++)
         {
-            SpendResource(ResourceType.Grain, amount);
-            // 畑に穀物を配置（実装は簡略化）
-            return true;
+            for (int x = boardMinX; x <= boardMaxX; x++)
+            {
+                Vector2Int position = new Vector2Int(x, y);
+                if (IsValidPosition(position) && !fieldMap.ContainsKey(position))
+                {
+                    return AddField(position);
+                }
+            }
         }
+        
+        Debug.LogWarning($"{playerName}のプレイヤーボードに畑を追加できる空きがありません");
         return false;
     }
     
-    public bool SowVegetable(int amount)
+       // 種まき - 座標を指定（1個ずつ植える）
+    public bool Sow(ResourceType cropType, Vector2Int position)
     {
-        if (GetResource(ResourceType.Vegetable) >= amount && fields > 0)
+        // 有効な作物種類かチェック
+        if (!IsValidCropType(cropType))
         {
-            SpendResource(ResourceType.Vegetable, amount);
-            // 畑に野菜を配置（実装は簡略化）
+            Debug.LogWarning($"無効な作物種類です: {cropType}");
+            return false;
+        }
+        
+        // 座標が有効かチェック
+        if (!IsValidPosition(position))
+        {
+            Debug.LogWarning($"無効な座標です: ({position.x}, {position.y})");
+            Debug.LogWarning($"有効範囲: X={boardMinX}-{boardMaxX}, Y={boardMinY}-{boardMaxY}");
+            Debug.LogWarning($"基本ボード: X={baseBoardMinX}-{baseBoardMaxX}, Y={baseBoardMinY}-{baseBoardMaxY}");
+            return false;
+        }
+        
+        // 指定座標に畑があるかチェック
+        if (!fieldMap.ContainsKey(position))
+        {
+            Debug.LogWarning($"座標({position.x}, {position.y})には畑がありません");
+            Debug.LogWarning($"まず畑を追加してください: player.AddField({position.x}, {position.y})");
+            return false;
+        }
+        
+        // リソースが足りるかチェック（1個必要）
+        if (GetResource(cropType) < 1)
+        {
+            Debug.LogWarning($"{GetResourceName(cropType)}が不足しています（必要: 1個、所持: {GetResource(cropType)}個）");
+            return false;
+        }
+        
+        // 指定された畑に植えられるかチェック（1個）
+        Field targetField = fieldMap[position];
+        if (!targetField.CanPlantCrop(cropType, 1))
+        {
+            Debug.LogWarning($"座標({position.x}, {position.y})の畑には{GetResourceName(cropType)}を植えることができません");
+            
+            // 現在の畑の状況を表示
+            if (targetField.IsEmpty())
+            {
+                Debug.LogWarning($"  座標({position.x}, {position.y})の畑は空です（容量制限に達している可能性があります）");
+            }
+            else
+            {
+                var crops = targetField.GetAllCrops();
+                string cropInfo = string.Join(", ", crops.Select(kv => $"{GetResourceName(kv.Key)}×{kv.Value}"));
+                Debug.LogWarning($"  座標({position.x}, {position.y})の現在の状況: {cropInfo}");
+                Debug.LogWarning($"  各畑には同じ作物を最大3個まで植えられます");
+            }
+            return false;
+        }
+        
+        // 種まき実行（1個）
+        SpendResource(cropType, 1);
+        if (targetField.PlantCrop(cropType, 1))
+        {
+            Debug.Log($"{playerName}が{GetResourceName(cropType)}1個を座標({position.x}, {position.y})の畑に植えました");
             return true;
         }
+        
         return false;
+    }
+    
+    // 種まき - 座標指定版（x, y個別指定）
+    public bool Sow(ResourceType cropType, int x, int y)
+    {
+        return Sow(cropType, new Vector2Int(x, y));
+    }
+    
+    // 座標の有効性をチェック（拡張可能範囲内）
+    private bool IsValidPosition(Vector2Int position)
+    {
+        return position.x >= boardMinX && position.x <= boardMaxX && 
+               position.y >= boardMinY && position.y <= boardMaxY;
+    }
+    
+    // 基本ボード内かどうかをチェック
+    private bool IsInBaseBoard(Vector2Int position)
+    {
+        return position.x >= baseBoardMinX && position.x <= baseBoardMaxX && 
+               position.y >= baseBoardMinY && position.y <= baseBoardMaxY;
+    }
+    
+    // 拡張エリア内かどうかをチェック
+    private bool IsInExtensionArea(Vector2Int position)
+    {
+        return IsValidPosition(position) && !IsInBaseBoard(position);
+    }
+    
+    // 有効な作物種類かチェック
+    private bool IsValidCropType(ResourceType cropType)
+    {
+        return cropType == ResourceType.Grain || 
+               cropType == ResourceType.Vegetable || 
+               cropType == ResourceType.Wood || 
+               cropType == ResourceType.Reed || 
+               cropType == ResourceType.Food;
     }
     
     public int GetEmptyFields()
     {
-        // 簡略化：総畑数を返す（実際には種まき済みの畑を除く必要がある）
-        return fields;
+        int emptyCount = 0;
+        foreach (Field field in fieldMap.Values)
+        {
+            if (field.IsEmpty())
+            {
+                emptyCount++;
+            }
+        }
+        return emptyCount;
     }
     
     // 収穫
     public void HarvestCrops()
     {
-        // 簡略化：畑の数だけ穀物を獲得（収穫による直接受取）
-        if (fields > 0)
+        Debug.Log($"🌾 {playerName}の収穫を開始します");
+        
+        int totalHarvested = 0;
+        Dictionary<ResourceType, int> harvestedCrops = new Dictionary<ResourceType, int>();
+        
+        // 各畑から作物を収穫
+        foreach (var fieldKV in fieldMap)
         {
-            ReceiveResourceDirect(ResourceType.Grain, fields, null, "harvest");
+            Vector2Int position = fieldKV.Key;
+            Field field = fieldKV.Value;
+            
+            if (!field.IsEmpty())
+            {
+                var fieldCrops = field.GetAllCrops();
+                foreach (var cropKV in fieldCrops)
+                {
+                    ResourceType cropType = cropKV.Key;
+                    int cropCount = cropKV.Value;
+                    
+                    if (cropCount > 0)
+                    {
+                        // 畑から作物を1個収穫して畑の作物を減らす
+                        int harvestedAmount = field.HarvestCrop(cropType, 1);
+                        if (harvestedAmount > 0)
+                        {
+                            // プレイヤーに作物を追加
+                            ReceiveResourceDirect(cropType, harvestedAmount, null, "harvest");
+                            
+                            Debug.Log($"    座標({position.x}, {position.y})から{GetResourceName(cropType)}を1個収穫");
+                            
+                            // 統計用
+                            if (!harvestedCrops.ContainsKey(cropType))
+                                harvestedCrops[cropType] = 0;
+                            harvestedCrops[cropType] += harvestedAmount;
+                            totalHarvested += harvestedAmount;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 収穫結果をログ出力
+        if (totalHarvested > 0)
+        {
+            Debug.Log($"  {playerName}の収穫結果:");
+            foreach (var cropKV in harvestedCrops)
+            {
+                Debug.Log($"    {GetResourceName(cropKV.Key)}: {cropKV.Value}個");
+            }
+        }
+        else
+        {
+            Debug.Log($"  {playerName}は収穫できる作物がありませんでした");
         }
         
         // 職業効果のトリガー
         TriggerOccupationEffects(OccupationTrigger.OnHarvest);
+    }
+    
+    // 畑の状態を確認するメソッド（プレイヤーボードのグリッド表示）
+    public void PrintFieldStatus()
+    {
+        int boardWidth = boardMaxX - boardMinX + 1;
+        int boardHeight = boardMaxY - boardMinY + 1;
+        
+        Debug.Log($"=== {playerName}のプレイヤーボード ===");
+        Debug.Log($"基本ボード: {baseBoardMaxX-baseBoardMinX+1}×{baseBoardMaxY-baseBoardMinY+1} (X={baseBoardMinX}-{baseBoardMaxX}, Y={baseBoardMinY}-{baseBoardMaxY})");
+        Debug.Log($"拡張可能範囲: {boardWidth}×{boardHeight} (X={boardMinX}-{boardMaxX}, Y={boardMinY}-{boardMaxY})");
+        Debug.Log($"畑の総数: {fields}個");
+        Debug.Log($"空の畑: {GetEmptyFields()}個");
+        Debug.Log("");
+        
+        // プレイヤーボードをグリッド形式で表示
+        Debug.Log("プレイヤーボード配置:");
+        for (int y = boardMinY; y <= boardMaxY; y++)
+        {
+            string row = $"  Y{y}: ";
+            for (int x = boardMinX; x <= boardMaxX; x++)
+            {
+                Vector2Int position = new Vector2Int(x, y);
+                bool isInBase = IsInBaseBoard(position);
+                
+                if (fieldMap.ContainsKey(position))
+                {
+                    Field field = fieldMap[position];
+                    if (field.IsEmpty())
+                    {
+                        row += isInBase ? "[空畑] " : "[空拡] ";
+                    }
+                    else
+                    {
+                        var crops = field.GetAllCrops();
+                        string cropInfo = string.Join(",", crops.Select(kv => $"{GetResourceShortName(kv.Key)}{kv.Value}"));
+                        row += $"[{cropInfo}] ";
+                    }
+                }
+                else
+                {
+                    row += isInBase ? "[基本] " : "[拡張] ";
+                }
+            }
+            Debug.Log(row);
+        }
+        
+        Debug.Log("");
+        string axisLabels = "座標軸: ";
+        for (int x = boardMinX; x <= boardMaxX; x++)
+        {
+            axisLabels += $"X{x}  ";
+        }
+        Debug.Log(axisLabels);
+        Debug.Log("");
+        Debug.Log("凡例:");
+        Debug.Log("  [基本] = 基本ボード範囲（畑なし）");
+        Debug.Log("  [拡張] = 拡張エリア（畑なし）");
+        Debug.Log("  [空畑] = 基本ボードの空畑");
+        Debug.Log("  [空拡] = 拡張エリアの空畑");
+        Debug.Log("  [穀2] = 穀物2個などの作物");
+        Debug.Log("");
+        Debug.Log("畑の詳細:");
+        if (fieldMap.Count == 0)
+        {
+            Debug.Log("  畑がありません。まず畑を追加してください。");
+        }
+        else
+        {
+            foreach (var fieldKV in fieldMap)
+            {
+                Vector2Int position = fieldKV.Key;
+                Field field = fieldKV.Value;
+                string areaInfo = IsInBaseBoard(position) ? "基本ボード" : "拡張エリア";
+                
+                if (field.IsEmpty())
+                {
+                    Debug.Log($"  座標({position.x},{position.y}) [{areaInfo}]: 空");
+                }
+                else
+                {
+                    var crops = field.GetAllCrops();
+                    string cropInfo = string.Join(", ", crops.Select(kv => $"{GetResourceName(kv.Key)}×{kv.Value}"));
+                    Debug.Log($"  座標({position.x},{position.y}) [{areaInfo}]: {cropInfo}");
+                }
+            }
+        }
+        
+        Debug.Log("");
+        Debug.Log("使用例:");
+        Debug.Log("  player.AddField(2, 2);                     // 座標(2,2)の基本ボードに畑を追加");
+        Debug.Log("  player.Sow(ResourceType.Grain, 2, 2);      // 穀物1個を座標(2,2)に");
+        Debug.Log("  player.AddField(0, 0);                     // 座標(0,0)の拡張エリアに畑を追加");
+    }
+    
+                     // 種まきの使用例を表示するメソッド
+    public void ShowSowingExamples()
+    {
+        Debug.Log($"=== {playerName}の種まき使用例 ===");
+        Debug.Log("基本的な使い方（常に作物種類と座標を指定）:");
+        Debug.Log("  player.Sow(ResourceType.Grain, 2, 2);        // 穀物1個を座標(2,2)に");
+        Debug.Log("  player.Sow(ResourceType.Vegetable, 3, 2);    // 野菜1個を座標(3,2)に");
+        Debug.Log("  player.Sow(ResourceType.Wood, 4, 2);         // 木1個を座標(4,2)に");
+        Debug.Log("  player.Sow(ResourceType.Reed, 2, 3);         // 葦1個を座標(2,3)に");
+        Debug.Log("  player.Sow(ResourceType.Food, 3, 3);         // 食料1個を座標(3,3)に");
+        Debug.Log("");
+        Debug.Log("畑の管理:");
+        Debug.Log("  player.AddField(2, 2);                       // 座標(2,2)の基本ボードに畑を追加");
+        Debug.Log("  player.AddField(0, 0);                       // 座標(0,0)の拡張エリアに畑を追加");
+        Debug.Log("  player.AddField();                           // 空いている座標に自動で畑を追加");
+        Debug.Log("");
+        Debug.Log("ルール:");
+        Debug.Log("- 各畑には同じ作物を最大3個まで植えることができます");
+        Debug.Log($"- 基本ボード: X={baseBoardMinX}-{baseBoardMaxX}, Y={baseBoardMinY}-{baseBoardMaxY}");
+        Debug.Log($"- 拡張可能範囲: X={boardMinX}-{boardMaxX}, Y={boardMinY}-{boardMaxY}");
+        Debug.Log("- 畑がない座標には種まきできません（まず畑を追加してください）");
+        Debug.Log("- 拡張エリアは将来のゲーム拡張で使用可能になります");
+    }
+    
+    // 特定の作物の合計数を畑から取得
+    public int GetTotalCropsInFields(ResourceType cropType)
+    {
+        int total = 0;
+        foreach (Field field in fieldMap.Values)
+        {
+            total += field.GetCropCount(cropType);
+        }
+        return total;
+    }
+    
+    // 畑に植えられているすべての作物の統計を取得
+    public Dictionary<ResourceType, int> GetAllCropsInFields()
+    {
+        Dictionary<ResourceType, int> allCrops = new Dictionary<ResourceType, int>();
+        
+        foreach (Field field in fieldMap.Values)
+        {
+            var fieldCrops = field.GetAllCrops();
+            foreach (var cropKV in fieldCrops)
+            {
+                if (!allCrops.ContainsKey(cropKV.Key))
+                    allCrops[cropKV.Key] = 0;
+                allCrops[cropKV.Key] += cropKV.Value;
+            }
+        }
+        
+        return allCrops;
+    }
+    
+    // 指定座標の畑情報を取得
+    public Field GetFieldAt(Vector2Int position)
+    {
+        return fieldMap.ContainsKey(position) ? fieldMap[position] : null;
+    }
+    
+    // 指定座標の畑情報を取得（座標個別指定版）
+    public Field GetFieldAt(int x, int y)
+    {
+        return GetFieldAt(new Vector2Int(x, y));
+    }
+    
+    // プレイヤーボード上のすべての畑の座標を取得
+    public List<Vector2Int> GetAllFieldPositions()
+    {
+        return fieldMap.Keys.ToList();
+    }
+    
+    // リソース名を日本語で取得（ログ用）
+    private string GetResourceName(ResourceType resourceType)
+    {
+        switch (resourceType)
+        {
+            case ResourceType.Grain: return "穀物";
+            case ResourceType.Vegetable: return "野菜";
+            case ResourceType.Wood: return "木材";
+            case ResourceType.Reed: return "葦";
+            case ResourceType.Food: return "食料";
+            default: return resourceType.ToString();
+        }
+    }
+    
+    // リソース名を短縮形で取得（グリッド表示用）
+    private string GetResourceShortName(ResourceType resourceType)
+    {
+        switch (resourceType)
+        {
+            case ResourceType.Grain: return "穀";
+            case ResourceType.Vegetable: return "野";
+            case ResourceType.Wood: return "木";
+            case ResourceType.Reed: return "葦";
+            case ResourceType.Food: return "食";
+            default: return resourceType.ToString().Substring(0, 1);
+        }
     }
     
     // 動物の飼育
