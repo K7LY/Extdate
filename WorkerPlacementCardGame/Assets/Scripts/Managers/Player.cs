@@ -123,10 +123,14 @@ public class Player : MonoBehaviour
     public System.Action<int> OnVictoryPointsChanged;
     public System.Action<Card> OnCardPlayed;
     
+    [Header("タイル管理")]
+    [SerializeField] private TileManager tileManager; // TileManagerの参照
+    
     void Start()
     {
         InitializeResources();
         InitializeFields();
+        InitializeTileManager();
         availableWorkers = familyMembers;
     }
     
@@ -154,6 +158,21 @@ public class Player : MonoBehaviour
         Debug.Log($"{playerName}のプレイヤーボードを初期化しました（初期畑数: 0個）");
         Debug.Log($"基本ボード範囲: X={baseBoardMinX}-{baseBoardMaxX}, Y={baseBoardMinY}-{baseBoardMaxY}");
         Debug.Log($"拡張可能範囲: X={boardMinX}-{boardMaxX}, Y={boardMinY}-{boardMaxY}");
+    }
+    
+    private void InitializeTileManager()
+    {
+        // TileManagerが設定されていない場合は自動で取得
+        if (tileManager == null)
+        {
+            tileManager = FindObjectOfType<TileManager>();
+        }
+        
+        // TileManagerが見つからない場合は警告
+        if (tileManager == null)
+        {
+            Debug.LogWarning($"{playerName}: TileManagerが見つかりません。TileManagerとの連携機能は無効になります。");
+        }
     }
     
     // リソース管理
@@ -422,6 +441,13 @@ public class Player : MonoBehaviour
         fields++;
         fieldMap[position] = new Field(position);
         
+        // TileManagerとの連携：タイルを畑タイプに設定
+        if (tileManager != null)
+        {
+            tileManager.SetTileType(position, TileType.Field);
+            Debug.Log($"TileManager統合: 座標({position.x}, {position.y})を畑タイルに設定しました");
+        }
+        
         // 追加場所の情報を表示
         string areaInfo = IsInBaseBoard(position) ? "基本ボード" : "拡張エリア";
         Debug.Log($"{playerName}が座標({position.x}, {position.y})の{areaInfo}に新しい畑を追加しました（合計: {fields}個）");
@@ -514,6 +540,21 @@ public class Player : MonoBehaviour
         SpendResource(cropType, 1);
         if (targetField.PlantCrop(cropType, 1))
         {
+            // TileManagerとの連携：植物をタイルマップにも追加
+            if (tileManager != null)
+            {
+                PlantType plantType = ConvertResourceToPlantType(cropType);
+                if (plantType != PlantType.None)
+                {
+                    // タイルを畑タイプに設定
+                    tileManager.SetTileType(position, TileType.Field);
+                    // 植物を追加
+                    tileManager.AddPlant(position, plantType, 1);
+                    
+                    Debug.Log($"TileManager統合: 座標({position.x}, {position.y})に{plantType}を1個追加しました");
+                }
+            }
+            
             Debug.Log($"{playerName}が{GetResourceName(cropType)}1個を座標({position.x}, {position.y})の畑に植えました");
             return true;
         }
@@ -600,6 +641,17 @@ public class Player : MonoBehaviour
                         {
                             // プレイヤーに作物を追加
                             ReceiveResourceDirect(cropType, harvestedAmount, null, "harvest");
+                            
+                            // TileManagerとの連携：タイルマップからも植物を削除
+                            if (tileManager != null)
+                            {
+                                PlantType plantType = ConvertResourceToPlantType(cropType);
+                                if (plantType != PlantType.None)
+                                {
+                                    tileManager.GetTile(position)?.RemovePlant(plantType, harvestedAmount);
+                                    Debug.Log($"TileManager統合: 座標({position.x}, {position.y})から{plantType}を{harvestedAmount}個削除しました");
+                                }
+                            }
                             
                             Debug.Log($"    座標({position.x}, {position.y})から{GetResourceName(cropType)}を1個収穫");
                             
@@ -1301,5 +1353,27 @@ public class Player : MonoBehaviour
         AddResource(ResourceType.Grain, 1);
         
         Debug.Log("=== 新しいトリガーシステムのテスト完了 ===");
+    }
+    
+    /// <summary>
+    /// ResourceTypeをPlantTypeに変換
+    /// </summary>
+    private PlantType ConvertResourceToPlantType(ResourceType resourceType)
+    {
+        switch (resourceType)
+        {
+            case ResourceType.Grain:
+                return PlantType.Grain;
+            case ResourceType.Vegetable:
+                return PlantType.Vegetable;
+            case ResourceType.Wood:
+                return PlantType.Tree;
+            case ResourceType.Reed:
+                return PlantType.Grass;
+            case ResourceType.Food:
+                return PlantType.Fruit;
+            default:
+                return PlantType.None;
+        }
     }
 }
