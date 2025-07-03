@@ -123,10 +123,14 @@ public class Player : MonoBehaviour
     public System.Action<int> OnVictoryPointsChanged;
     public System.Action<Card> OnCardPlayed;
     
+    [Header("タイル管理")]
+    [SerializeField] private TileManager tileManager; // TileManagerの参照
+    
     void Start()
     {
         InitializeResources();
         InitializeFields();
+        InitializeTileManager();
         availableWorkers = familyMembers;
     }
     
@@ -154,6 +158,21 @@ public class Player : MonoBehaviour
         Debug.Log($"{playerName}のプレイヤーボードを初期化しました（初期畑数: 0個）");
         Debug.Log($"基本ボード範囲: X={baseBoardMinX}-{baseBoardMaxX}, Y={baseBoardMinY}-{baseBoardMaxY}");
         Debug.Log($"拡張可能範囲: X={boardMinX}-{boardMaxX}, Y={boardMinY}-{boardMaxY}");
+    }
+    
+    private void InitializeTileManager()
+    {
+        // TileManagerが設定されていない場合は自動で取得
+        if (tileManager == null)
+        {
+            tileManager = FindObjectOfType<TileManager>();
+        }
+        
+        // TileManagerが見つからない場合は警告
+        if (tileManager == null)
+        {
+            Debug.LogWarning($"{playerName}: TileManagerが見つかりません。TileManagerとの連携機能は無効になります。");
+        }
     }
     
     // リソース管理
@@ -422,6 +441,13 @@ public class Player : MonoBehaviour
         fields++;
         fieldMap[position] = new Field(position);
         
+        // TileManagerとの連携：タイルを畑タイプに設定
+        if (tileManager != null)
+        {
+            tileManager.SetTileType(position, TileType.Field);
+            Debug.Log($"TileManager統合: 座標({position.x}, {position.y})を畑タイルに設定しました");
+        }
+        
         // 追加場所の情報を表示
         string areaInfo = IsInBaseBoard(position) ? "基本ボード" : "拡張エリア";
         Debug.Log($"{playerName}が座標({position.x}, {position.y})の{areaInfo}に新しい畑を追加しました（合計: {fields}個）");
@@ -455,73 +481,23 @@ public class Player : MonoBehaviour
         return false;
     }
     
-       // 種まき - 座標を指定（1個ずつ植える）
+           /// <summary>
+    /// 種まき - TileManagerに委譲
+    /// </summary>
     public bool Sow(ResourceType cropType, Vector2Int position)
     {
-        // 有効な作物種類かチェック
-        if (!IsValidCropType(cropType))
+        if (tileManager == null)
         {
-            Debug.LogWarning($"無効な作物種類です: {cropType}");
+            Debug.LogWarning($"{playerName}: TileManagerが設定されていないため、種まきできません");
             return false;
         }
         
-        // 座標が有効かチェック
-        if (!IsValidPosition(position))
-        {
-            Debug.LogWarning($"無効な座標です: ({position.x}, {position.y})");
-            Debug.LogWarning($"有効範囲: X={boardMinX}-{boardMaxX}, Y={boardMinY}-{boardMaxY}");
-            Debug.LogWarning($"基本ボード: X={baseBoardMinX}-{baseBoardMaxX}, Y={baseBoardMinY}-{baseBoardMaxY}");
-            return false;
-        }
-        
-        // 指定座標に畑があるかチェック
-        if (!fieldMap.ContainsKey(position))
-        {
-            Debug.LogWarning($"座標({position.x}, {position.y})には畑がありません");
-            Debug.LogWarning($"まず畑を追加してください: player.AddField({position.x}, {position.y})");
-            return false;
-        }
-        
-        // リソースが足りるかチェック（1個必要）
-        if (GetResource(cropType) < 1)
-        {
-            Debug.LogWarning($"{GetResourceName(cropType)}が不足しています（必要: 1個、所持: {GetResource(cropType)}個）");
-            return false;
-        }
-        
-        // 指定された畑に植えられるかチェック（1個）
-        Field targetField = fieldMap[position];
-        if (!targetField.CanPlantCrop(cropType, 1))
-        {
-            Debug.LogWarning($"座標({position.x}, {position.y})の畑には{GetResourceName(cropType)}を植えることができません");
-            
-            // 現在の畑の状況を表示
-            if (targetField.IsEmpty())
-            {
-                Debug.LogWarning($"  座標({position.x}, {position.y})の畑は空です（容量制限に達している可能性があります）");
-            }
-            else
-            {
-                var crops = targetField.GetAllCrops();
-                string cropInfo = string.Join(", ", crops.Select(kv => $"{GetResourceName(kv.Key)}×{kv.Value}"));
-                Debug.LogWarning($"  座標({position.x}, {position.y})の現在の状況: {cropInfo}");
-                Debug.LogWarning($"  各畑には同じ作物を最大3個まで植えられます");
-            }
-            return false;
-        }
-        
-        // 種まき実行（1個）
-        SpendResource(cropType, 1);
-        if (targetField.PlantCrop(cropType, 1))
-        {
-            Debug.Log($"{playerName}が{GetResourceName(cropType)}1個を座標({position.x}, {position.y})の畑に植えました");
-            return true;
-        }
-        
-        return false;
+        return tileManager.Sow(this, cropType, position);
     }
-    
-    // 種まき - 座標指定版（x, y個別指定）
+
+    /// <summary>
+    /// 種まき - 座標指定版（x, y個別指定）
+    /// </summary>
     public bool Sow(ResourceType cropType, int x, int y)
     {
         return Sow(cropType, new Vector2Int(x, y));
@@ -547,15 +523,7 @@ public class Player : MonoBehaviour
         return IsValidPosition(position) && !IsInBaseBoard(position);
     }
     
-    // 有効な作物種類かチェック
-    private bool IsValidCropType(ResourceType cropType)
-    {
-        return cropType == ResourceType.Grain || 
-               cropType == ResourceType.Vegetable || 
-               cropType == ResourceType.Wood || 
-               cropType == ResourceType.Reed || 
-               cropType == ResourceType.Food;
-    }
+
     
     public int GetEmptyFields()
     {
@@ -570,63 +538,18 @@ public class Player : MonoBehaviour
         return emptyCount;
     }
     
-    // 収穫
+    /// <summary>
+    /// 収穫 - TileManagerに委譲
+    /// </summary>
     public void HarvestCrops()
     {
-        Debug.Log($"🌾 {playerName}の収穫を開始します");
-        
-        int totalHarvested = 0;
-        Dictionary<ResourceType, int> harvestedCrops = new Dictionary<ResourceType, int>();
-        
-        // 各畑から作物を収穫
-        foreach (var fieldKV in fieldMap)
+        if (tileManager == null)
         {
-            Vector2Int position = fieldKV.Key;
-            Field field = fieldKV.Value;
-            
-            if (!field.IsEmpty())
-            {
-                var fieldCrops = field.GetAllCrops();
-                foreach (var cropKV in fieldCrops)
-                {
-                    ResourceType cropType = cropKV.Key;
-                    int cropCount = cropKV.Value;
-                    
-                    if (cropCount > 0)
-                    {
-                        // 畑から作物を1個収穫して畑の作物を減らす
-                        int harvestedAmount = field.HarvestCrop(cropType, 1);
-                        if (harvestedAmount > 0)
-                        {
-                            // プレイヤーに作物を追加
-                            ReceiveResourceDirect(cropType, harvestedAmount, null, "harvest");
-                            
-                            Debug.Log($"    座標({position.x}, {position.y})から{GetResourceName(cropType)}を1個収穫");
-                            
-                            // 統計用
-                            if (!harvestedCrops.ContainsKey(cropType))
-                                harvestedCrops[cropType] = 0;
-                            harvestedCrops[cropType] += harvestedAmount;
-                            totalHarvested += harvestedAmount;
-                        }
-                    }
-                }
-            }
+            Debug.LogWarning($"{playerName}: TileManagerが設定されていないため、収穫できません");
+            return;
         }
         
-        // 収穫結果をログ出力
-        if (totalHarvested > 0)
-        {
-            Debug.Log($"  {playerName}の収穫結果:");
-            foreach (var cropKV in harvestedCrops)
-            {
-                Debug.Log($"    {GetResourceName(cropKV.Key)}: {cropKV.Value}個");
-            }
-        }
-        else
-        {
-            Debug.Log($"  {playerName}は収穫できる作物がありませんでした");
-        }
+        var harvestedCrops = tileManager.HarvestCrops(this);
         
         // 職業効果のトリガー
         TriggerOccupationEffects(OccupationTrigger.OnHarvest);
@@ -1302,4 +1225,6 @@ public class Player : MonoBehaviour
         
         Debug.Log("=== 新しいトリガーシステムのテスト完了 ===");
     }
+    
+
 }

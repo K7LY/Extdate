@@ -790,4 +790,245 @@ public class TileManager : MonoBehaviour
             }
         }
     }
+
+    /// <summary>
+    /// 種まき - PlayerのSow機能をTileManagerに統合
+    /// </summary>
+    public bool Sow(Player player, ResourceType cropType, Vector2Int position)
+    {
+        if (player == null)
+        {
+            Debug.LogWarning("TileManager.Sow: プレイヤーが指定されていません");
+            return false;
+        }
+
+        // 有効な作物種類かチェック
+        if (!IsValidCropType(cropType))
+        {
+            Debug.LogWarning($"TileManager.Sow: 無効な作物種類です: {cropType}");
+            return false;
+        }
+
+        // 座標が有効かチェック（プレイヤーボード範囲内）
+        if (!IsValidPlayerPosition(player, position))
+        {
+            Debug.LogWarning($"TileManager.Sow: 座標({position.x}, {position.y})はプレイヤー {player.playerName} の有効範囲外です");
+            return false;
+        }
+
+        // プレイヤーの畑があるかチェック
+        var playerField = player.GetFieldAt(position);
+        if (playerField == null)
+        {
+            Debug.LogWarning($"TileManager.Sow: 座標({position.x}, {position.y})には {player.playerName} の畑がありません");
+            Debug.LogWarning($"まず畑を追加してください: player.AddField({position.x}, {position.y})");
+            return false;
+        }
+
+        // プレイヤーのリソースが足りるかチェック
+        if (player.GetResource(cropType) < 1)
+        {
+            Debug.LogWarning($"TileManager.Sow: {player.playerName} の{GetResourceName(cropType)}が不足しています（必要: 1個、所持: {player.GetResource(cropType)}個）");
+            return false;
+        }
+
+        // プレイヤーの畑に植えられるかチェック
+        if (!playerField.CanPlantCrop(cropType, 1))
+        {
+            Debug.LogWarning($"TileManager.Sow: 座標({position.x}, {position.y})の畑には{GetResourceName(cropType)}を植えることができません");
+            
+            if (playerField.IsEmpty())
+            {
+                Debug.LogWarning($"  座標({position.x}, {position.y})の畑は空です（容量制限に達している可能性があります）");
+            }
+            else
+            {
+                var crops = playerField.GetAllCrops();
+                string cropInfo = string.Join(", ", crops.Select(kv => $"{GetResourceName(kv.Key)}×{kv.Value}"));
+                Debug.LogWarning($"  座標({position.x}, {position.y})の現在の状況: {cropInfo}");
+                Debug.LogWarning($"  各畑には同じ作物を最大3個まで植えられます");
+            }
+            return false;
+        }
+
+        // 種まき実行
+        if (!player.SpendResource(cropType, 1))
+        {
+            Debug.LogWarning($"TileManager.Sow: {player.playerName} のリソース消費に失敗しました");
+            return false;
+        }
+
+        // プレイヤーの畑システムに植える
+        if (!playerField.PlantCrop(cropType, 1))
+        {
+            // 失敗した場合はリソースを返却
+            player.AddResource(cropType, 1);
+            Debug.LogWarning($"TileManager.Sow: プレイヤー畑への植付けに失敗しました");
+            return false;
+        }
+
+        // TileManagerのタイルマップに反映
+        SetTileType(position, TileType.Field);
+        PlantType plantType = ConvertResourceToPlantType(cropType);
+        if (plantType != PlantType.None)
+        {
+            AddPlant(position, plantType, 1);
+        }
+
+        if (enableDebugLog)
+        {
+            Debug.Log($"TileManager.Sow: {player.playerName}が{GetResourceName(cropType)}1個を座標({position.x}, {position.y})に植えました");
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 種まき（座標指定版）
+    /// </summary>
+    public bool Sow(Player player, ResourceType cropType, int x, int y)
+    {
+        return Sow(player, cropType, new Vector2Int(x, y));
+    }
+
+    /// <summary>
+    /// 収穫 - プレイヤーの畑とTileManagerの連携
+    /// </summary>
+    public Dictionary<ResourceType, int> HarvestCrops(Player player)
+    {
+        if (player == null)
+        {
+            Debug.LogWarning("TileManager.HarvestCrops: プレイヤーが指定されていません");
+            return new Dictionary<ResourceType, int>();
+        }
+
+        Debug.Log($"🌾 TileManager: {player.playerName}の収穫を開始します");
+        
+        var harvestedCrops = new Dictionary<ResourceType, int>();
+        var fieldPositions = player.GetAllFieldPositions();
+
+        foreach (var position in fieldPositions)
+        {
+            var field = player.GetFieldAt(position);
+            if (field != null && !field.IsEmpty())
+            {
+                var fieldCrops = field.GetAllCrops();
+                foreach (var cropKV in fieldCrops)
+                {
+                    ResourceType cropType = cropKV.Key;
+                    int cropCount = cropKV.Value;
+                    
+                    if (cropCount > 0)
+                    {
+                        // プレイヤーの畑から収穫
+                        int harvestedAmount = field.HarvestCrop(cropType, 1);
+                        if (harvestedAmount > 0)
+                        {
+                            // プレイヤーにリソース追加
+                            player.ReceiveResourceDirect(cropType, harvestedAmount, null, "harvest");
+                            
+                            // TileManagerからも植物を削除
+                            PlantType plantType = ConvertResourceToPlantType(cropType);
+                            if (plantType != PlantType.None)
+                            {
+                                GetTile(position)?.RemovePlant(plantType, harvestedAmount);
+                            }
+                            
+                            // 統計用
+                            if (!harvestedCrops.ContainsKey(cropType))
+                                harvestedCrops[cropType] = 0;
+                            harvestedCrops[cropType] += harvestedAmount;
+                            
+                            if (enableDebugLog)
+                            {
+                                Debug.Log($"    座標({position.x}, {position.y})から{GetResourceName(cropType)}を{harvestedAmount}個収穫");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 収穫結果をログ出力
+        if (harvestedCrops.Count > 0)
+        {
+            Debug.Log($"  {player.playerName}の収穫結果:");
+            foreach (var cropKV in harvestedCrops)
+            {
+                Debug.Log($"    {GetResourceName(cropKV.Key)}: {cropKV.Value}個");
+            }
+        }
+        else
+        {
+            Debug.Log($"  {player.playerName}は収穫できる作物がありませんでした");
+        }
+
+        return harvestedCrops;
+    }
+
+    /// <summary>
+    /// 有効な作物種類かチェック
+    /// </summary>
+    private bool IsValidCropType(ResourceType cropType)
+    {
+        return cropType == ResourceType.Grain || 
+               cropType == ResourceType.Vegetable || 
+               cropType == ResourceType.Wood || 
+               cropType == ResourceType.Reed || 
+               cropType == ResourceType.Food;
+    }
+
+    /// <summary>
+    /// プレイヤーの有効範囲内かチェック
+    /// </summary>
+    private bool IsValidPlayerPosition(Player player, Vector2Int position)
+    {
+        // プレイヤーのボード範囲をチェック（簡略化版）
+        // 実際の実装では、プレイヤーのボード範囲を取得する必要があります
+        return position.x >= -10 && position.x <= 20 && 
+               position.y >= -10 && position.y <= 20;
+    }
+
+    /// <summary>
+    /// ResourceTypeをPlantTypeに変換
+    /// </summary>
+    private PlantType ConvertResourceToPlantType(ResourceType resourceType)
+    {
+        switch (resourceType)
+        {
+            case ResourceType.Grain:
+                return PlantType.Grain;
+            case ResourceType.Vegetable:
+                return PlantType.Vegetable;
+            case ResourceType.Wood:
+                return PlantType.Tree;
+            case ResourceType.Reed:
+                return PlantType.Grass;
+            case ResourceType.Food:
+                return PlantType.Fruit;
+            default:
+                return PlantType.None;
+        }
+    }
+
+    /// <summary>
+    /// リソース名を日本語で取得（ログ用）
+    /// </summary>
+    private string GetResourceName(ResourceType resourceType)
+    {
+        switch (resourceType)
+        {
+            case ResourceType.Grain: return "穀物";
+            case ResourceType.Vegetable: return "野菜";
+            case ResourceType.Wood: return "木材";
+            case ResourceType.Reed: return "葦";
+            case ResourceType.Food: return "食料";
+            case ResourceType.Clay: return "粘土";
+            case ResourceType.Stone: return "石";
+            case ResourceType.Sheep: return "羊";
+            case ResourceType.Boar: return "猪";
+            case ResourceType.Cattle: return "牛";
+            default: return resourceType.ToString();
+        }
+    }
 }
