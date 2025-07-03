@@ -94,11 +94,48 @@ public class PastureManagerExample : MonoBehaviour
         Debug.Log("--- 正方形の牧場作成テスト ---");
         
         // 2x2の正方形牧場を作成
-        // 境界柵を配置
-        pastureManager.AddFence(2, 2, FenceDirection.Horizontal);  // 下辺
-        pastureManager.AddFence(2, 4, FenceDirection.Horizontal);  // 上辺
-        pastureManager.AddFence(2, 2, FenceDirection.Vertical);    // 左辺
-        pastureManager.AddFence(4, 2, FenceDirection.Vertical);    // 右辺
+        // タイル座標: (1,1), (2,1), (1,2), (2,2)
+        // 
+        //   0   1   2   3
+        // 0 +---+---+---+
+        //   |   |   |   |
+        // 1 +---+===+===+---+
+        //   |   ‖ ■ | ■ ‖   |  ← 牧場エリア
+        // 2 +---+===+===+---+
+        //   |   ‖ ■ | ■ ‖   |
+        // 3 +---+===+===+---+
+        //   |   |   |   |
+        // 4 +---+---+---+
+        
+        Debug.Log("配置する柵の詳細:");
+        
+        // 水平柵（上下の境界）
+        bool fence1 = pastureManager.AddFence(1, 1, FenceDirection.Horizontal);  // タイル(1,1)の下境界
+        Debug.Log($"水平柵1 (1,1)下境界: {fence1}");
+        
+        bool fence2 = pastureManager.AddFence(2, 1, FenceDirection.Horizontal);  // タイル(2,1)の下境界
+        Debug.Log($"水平柵2 (2,1)下境界: {fence2}");
+        
+        bool fence3 = pastureManager.AddFence(1, 3, FenceDirection.Horizontal);  // タイル(1,2)の上境界
+        Debug.Log($"水平柵3 (1,3)上境界: {fence3}");
+        
+        bool fence4 = pastureManager.AddFence(2, 3, FenceDirection.Horizontal);  // タイル(2,2)の上境界
+        Debug.Log($"水平柵4 (2,3)上境界: {fence4}");
+        
+        // 垂直柵（左右の境界）
+        bool fence5 = pastureManager.AddFence(0, 1, FenceDirection.Vertical);    // タイル(1,1)の左境界
+        Debug.Log($"垂直柵5 (0,1)左境界: {fence5}");
+        
+        bool fence6 = pastureManager.AddFence(0, 2, FenceDirection.Vertical);    // タイル(1,2)の左境界
+        Debug.Log($"垂直柵6 (0,2)左境界: {fence6}");
+        
+        bool fence7 = pastureManager.AddFence(2, 1, FenceDirection.Vertical);    // タイル(2,1)の右境界
+        Debug.Log($"垂直柵7 (2,1)右境界: {fence7}");
+        
+        bool fence8 = pastureManager.AddFence(2, 2, FenceDirection.Vertical);    // タイル(2,2)の右境界
+        Debug.Log($"垂直柵8 (2,2)右境界: {fence8}");
+        
+        Debug.Log($"配置された柵の総数: {pastureManager.GetAllFences().Count}");
         
         // 牧場情報を表示
         var pastures = pastureManager.GetAllPastures();
@@ -109,6 +146,10 @@ public class PastureManagerExample : MonoBehaviour
             var pasture = pastures[0];
             Debug.Log($"牧場1 - 面積: {pasture.GetArea()}タイル, 容量: {pasture.capacity}匹");
             pastureManager.PrintPastureInfo(pasture.id);
+        }
+        else
+        {
+            Debug.LogWarning("牧場が検出されませんでした！境界が完全に閉じられていない可能性があります。");
         }
         
         yield return null;
@@ -204,19 +245,30 @@ public class PastureManagerExample : MonoBehaviour
         // 既存の牧場をクリア
         ClearAllFences();
         
-        // 第1牧場 (2x2)
-        pastureManager.AddFence(1, 1, FenceDirection.Horizontal);
-        pastureManager.AddFence(1, 3, FenceDirection.Horizontal);
-        pastureManager.AddFence(1, 1, FenceDirection.Vertical);
-        pastureManager.AddFence(3, 1, FenceDirection.Vertical);
+        // 第1牧場 (2x2) - 正しい8個の柵で囲む
+        Debug.Log("第1牧場 (2x2) を作成中...");
+        pastureManager.AddFence(1, 1, FenceDirection.Horizontal);  // 下境界1
+        pastureManager.AddFence(2, 1, FenceDirection.Horizontal);  // 下境界2
+        pastureManager.AddFence(1, 3, FenceDirection.Horizontal);  // 上境界1
+        pastureManager.AddFence(2, 3, FenceDirection.Horizontal);  // 上境界2
+        pastureManager.AddFence(0, 1, FenceDirection.Vertical);    // 左境界1
+        pastureManager.AddFence(0, 2, FenceDirection.Vertical);    // 左境界2
+        pastureManager.AddFence(2, 1, FenceDirection.Vertical);    // 右境界1
+        pastureManager.AddFence(2, 2, FenceDirection.Vertical);    // 右境界2
         
         yield return new WaitForSeconds(0.5f);
         
-        // 第2牧場 (1x3)
-        pastureManager.AddFence(5, 1, FenceDirection.Horizontal);
-        pastureManager.AddFence(5, 4, FenceDirection.Horizontal);
-        pastureManager.AddFence(5, 1, FenceDirection.Vertical);
-        pastureManager.AddFence(6, 1, FenceDirection.Vertical);
+        // 第2牧場 (1x3) - 正しい8個の柵で囲む
+        // タイル座標: (5,1), (5,2), (5,3)
+        Debug.Log("第2牧場 (1x3) を作成中...");
+        pastureManager.AddFence(5, 1, FenceDirection.Horizontal);  // 下境界
+        pastureManager.AddFence(5, 4, FenceDirection.Horizontal);  // 上境界
+        pastureManager.AddFence(4, 1, FenceDirection.Vertical);    // 左境界1
+        pastureManager.AddFence(4, 2, FenceDirection.Vertical);    // 左境界2
+        pastureManager.AddFence(4, 3, FenceDirection.Vertical);    // 左境界3
+        pastureManager.AddFence(5, 1, FenceDirection.Vertical);    // 右境界1
+        pastureManager.AddFence(5, 2, FenceDirection.Vertical);    // 右境界2
+        pastureManager.AddFence(5, 3, FenceDirection.Vertical);    // 右境界3
         
         var allPastures = pastureManager.GetAllPastures();
         Debug.Log($"複数牧場テスト - 検出された牧場数: {allPastures.Count}");
@@ -262,12 +314,24 @@ public class PastureManagerExample : MonoBehaviour
     {
         ClearAllFences();
         
-        // 2x2の小さな牧場
-        pastureManager.AddFence(1, 1, FenceDirection.Horizontal);
-        pastureManager.AddFence(1, 3, FenceDirection.Horizontal);
-        pastureManager.AddFence(1, 1, FenceDirection.Vertical);
-        pastureManager.AddFence(3, 1, FenceDirection.Vertical);
+        // 2x2の小さな牧場 - 正しい8個の柵で囲む
+        // タイル座標: (1,1), (2,1), (1,2), (2,2)
         
+        Debug.Log("2x2牧場の作成 - 8個の柵を配置:");
+        
+        // 水平柵（上下の境界）
+        pastureManager.AddFence(1, 1, FenceDirection.Horizontal);  // 下境界1
+        pastureManager.AddFence(2, 1, FenceDirection.Horizontal);  // 下境界2
+        pastureManager.AddFence(1, 3, FenceDirection.Horizontal);  // 上境界1
+        pastureManager.AddFence(2, 3, FenceDirection.Horizontal);  // 上境界2
+        
+        // 垂直柵（左右の境界）
+        pastureManager.AddFence(0, 1, FenceDirection.Vertical);    // 左境界1
+        pastureManager.AddFence(0, 2, FenceDirection.Vertical);    // 左境界2
+        pastureManager.AddFence(2, 1, FenceDirection.Vertical);    // 右境界1
+        pastureManager.AddFence(2, 2, FenceDirection.Vertical);    // 右境界2
+        
+        Debug.Log($"配置された柵の総数: {pastureManager.GetAllFences().Count}");
         Debug.Log("小さな牧場を作成しました");
         pastureManager.PrintAllPasturesInfo();
     }
