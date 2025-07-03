@@ -220,15 +220,32 @@ public class ActionSpace : MonoBehaviour
         if (availableFields > 0 && (grainSeeds > 0 || vegetableSeeds > 0))
         {
             // 簡易AI: 穀物を優先して種まき
-            if (grainSeeds > 0)
+            bool sowingSuccess = false;
+            var fieldPositions = player.GetAllFieldPositions();
+            
+            foreach (var position in fieldPositions)
             {
-                player.SowGrain(1);
-                Debug.Log($"{player.playerName}が穀物の種まきをしました");
+                var field = player.GetFieldAt(position);
+                if (field != null && field.IsEmpty())
+                {
+                    if (grainSeeds > 0 && player.Sow(ResourceType.Grain, position))
+                    {
+                        Debug.Log($"{player.playerName}が座標({position.x}, {position.y})に穀物の種まきをしました");
+                        sowingSuccess = true;
+                        break;
+                    }
+                    else if (vegetableSeeds > 0 && player.Sow(ResourceType.Vegetable, position))
+                    {
+                        Debug.Log($"{player.playerName}が座標({position.x}, {position.y})に野菜の種まきをしました");
+                        sowingSuccess = true;
+                        break;
+                    }
+                }
             }
-            else if (vegetableSeeds > 0)
+            
+            if (!sowingSuccess)
             {
-                player.SowVegetable(1);
-                Debug.Log($"{player.playerName}が野菜の種まきをしました");
+                Debug.Log($"{player.playerName}は種まきできません（空きの畑がない）");
             }
         }
         else
@@ -242,8 +259,31 @@ public class ActionSpace : MonoBehaviour
         // プレイヤーの穀物を使って種まき
         if (player.GetResource(ResourceType.Grain) > 0 && player.GetFields() > 0)
         {
-            player.SowGrain(1);
-            Debug.Log($"{player.playerName}が種まきをしました");
+            bool sowingSuccess = false;
+            var fieldPositions = player.GetAllFieldPositions();
+            
+            foreach (var position in fieldPositions)
+            {
+                var field = player.GetFieldAt(position);
+                if (field != null && field.IsEmpty())
+                {
+                    if (player.Sow(ResourceType.Grain, position))
+                    {
+                        Debug.Log($"{player.playerName}が座標({position.x}, {position.y})に穀物の種まきをしました");
+                        sowingSuccess = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!sowingSuccess)
+            {
+                Debug.Log($"{player.playerName}は種まきできません（空きの畑がない）");
+            }
+        }
+        else
+        {
+            Debug.Log($"{player.playerName}は種まきできません（穀物または畑が不足）");
         }
     }
     
