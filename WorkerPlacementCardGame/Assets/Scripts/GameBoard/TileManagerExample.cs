@@ -38,8 +38,8 @@ public class TileManagerExample : MonoBehaviour
     {
         Debug.Log("=== サンプルタイルを設定中 ===");
 
-        // 家を設定（座標 2, 3）
-        tileManager.SetTileType(2, 3, TileType.House);
+        // 木の家を設定（座標 2, 3）
+        tileManager.SetTileType(2, 3, TileType.WoodenHouse);
         tileManager.AddStructure(2, 3, StructureType.Well);
         tileManager.AddPlant(2, 3, PlantType.Rose, 2);
 
@@ -55,23 +55,20 @@ public class TileManagerExample : MonoBehaviour
         tileManager.AddAnimal(5, 4, AnimalType.Sheep, 4);
         tileManager.AddAnimal(5, 4, AnimalType.Cattle, 2);
 
-        // 森を設定（座標 1, 5）
-        tileManager.SetTileType(1, 5, TileType.Forest);
-        tileManager.AddPlant(1, 5, PlantType.Oak, 10);
-        tileManager.AddPlant(1, 5, PlantType.Pine, 8);
-        tileManager.AddAnimal(1, 5, AnimalType.Rabbit, 3);
-        tileManager.AddAnimal(1, 5, AnimalType.Bird, 7);
+        // レンガの家を設定（座標 1, 5）
+        tileManager.SetTileType(1, 5, TileType.BrickHouse);
+        tileManager.AddStructure(1, 5, StructureType.Granary);
+        tileManager.AddPlant(1, 5, PlantType.Flower, 3);
 
-        // 川を設定（座標 3, 1）
-        tileManager.SetTileType(3, 1, TileType.River);
-        tileManager.AddAnimal(3, 1, AnimalType.Fish, 12);
-        tileManager.AddAnimal(3, 1, AnimalType.Duck, 2);
+        // 石の家を設定（座標 3, 1）
+        tileManager.SetTileType(3, 1, TileType.StoneHouse);
+        tileManager.AddStructure(3, 1, StructureType.Workshop);
+        tileManager.AddStructure(3, 1, StructureType.Mill);
 
-        // 特殊タイル（工房エリア）を設定（座標 6, 2）
-        tileManager.SetTileType(6, 2, TileType.Special);
-        tileManager.AddStructure(6, 2, StructureType.Workshop);
-        tileManager.AddStructure(6, 2, StructureType.Mill);
-        tileManager.AddStructure(6, 2, StructureType.Granary);
+        // 追加の畑を設定（座標 6, 2）
+        tileManager.SetTileType(6, 2, TileType.Field);
+        tileManager.AddPlant(6, 2, PlantType.Vegetable, 4);
+        tileManager.AddPlant(6, 2, PlantType.Potato, 2);
 
         Debug.Log("サンプルタイルの設定が完了しました");
     }
@@ -308,7 +305,9 @@ public class TileManagerExample : MonoBehaviour
         List<Tile> allFarms = new List<Tile>();
         allFarms.AddRange(tileManager.GetTilesByType(TileType.Field));
         allFarms.AddRange(tileManager.GetTilesByType(TileType.Pasture));
-        allFarms.AddRange(tileManager.GetTilesByType(TileType.House));
+        allFarms.AddRange(tileManager.GetTilesByType(TileType.WoodenHouse));
+        allFarms.AddRange(tileManager.GetTilesByType(TileType.BrickHouse));
+        allFarms.AddRange(tileManager.GetTilesByType(TileType.StoneHouse));
         
         Debug.Log($"プレイヤーの農場エリア総数: {allFarms.Count}");
         
