@@ -8,14 +8,12 @@ using System.Linq;
 [System.Serializable]
 public enum TileType
 {
-    Empty,      // 空き地
-    House,      // 家
-    Field,      // 畑
-    Pasture,    // 牧場
-    Forest,     // 森
-    Mountain,   // 山
-    River,      // 川
-    Special     // 特殊タイル
+    Empty,          // 空き地
+    Field,          // 畑
+    WoodenHouse,    // 木の家
+    BrickHouse,     // レンガの家
+    StoneHouse,     // 石の家
+    Pasture         // 牧場
 }
 
 /// <summary>
@@ -283,13 +281,11 @@ public class Tile
         switch (type)
         {
             case TileType.Empty: return "空き地";
-            case TileType.House: return "家";
             case TileType.Field: return "畑";
+            case TileType.WoodenHouse: return "木の家";
+            case TileType.BrickHouse: return "レンガの家";
+            case TileType.StoneHouse: return "石の家";
             case TileType.Pasture: return "牧場";
-            case TileType.Forest: return "森";
-            case TileType.Mountain: return "山";
-            case TileType.River: return "川";
-            case TileType.Special: return "特殊";
             default: return type.ToString();
         }
     }
@@ -757,26 +753,20 @@ public class TileManager : MonoBehaviour
                 case TileType.Empty:
                     Gizmos.color = Color.white;
                     break;
-                case TileType.House:
-                    Gizmos.color = Color.red;
-                    break;
                 case TileType.Field:
                     Gizmos.color = Color.green;
                     break;
-                case TileType.Pasture:
-                    Gizmos.color = Color.yellow;
+                case TileType.WoodenHouse:
+                    Gizmos.color = new Color(0.6f, 0.4f, 0.2f); // 茶色
                     break;
-                case TileType.Forest:
-                    Gizmos.color = Color.cyan;
+                case TileType.BrickHouse:
+                    Gizmos.color = new Color(0.8f, 0.3f, 0.2f); // 赤茶色
                     break;
-                case TileType.Mountain:
+                case TileType.StoneHouse:
                     Gizmos.color = Color.gray;
                     break;
-                case TileType.River:
-                    Gizmos.color = Color.blue;
-                    break;
-                case TileType.Special:
-                    Gizmos.color = Color.magenta;
+                case TileType.Pasture:
+                    Gizmos.color = Color.yellow;
                     break;
             }
             
