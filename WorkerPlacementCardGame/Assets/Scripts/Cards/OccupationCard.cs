@@ -31,13 +31,21 @@ public enum OccupationTrigger
 {
     Immediate,      // 即座
     OnAction,       // アクション実行時
-    OnHarvest,      // 収穫時
-    OnBreeding,     // 繁殖時
+    OnHarvest,      // 収穫時（旧仕様、互換性のため残す）
+    OnBreeding,     // 繁殖時（旧仕様、互換性のため残す）
     OnTurnEnd,      // ターン終了時
     OnRoundStart,   // ラウンド開始時
     OnTake,         // アイテムを取得したとき
     OnReceive,      // アイテムが手持ちに入ったとき
-    Passive         // 継続効果
+    Passive,        // 継続効果
+    
+    // 新しい収穫フェーズ用トリガー
+    BeforeHarvest,  // 収穫の直前
+    HarvestStart,   // 収穫の開始時
+    FieldPhase,     // 畑フェーズ（作物収穫）
+    FeedingPhase,   // 食料供給フェーズ
+    BreedingPhase,  // 繁殖フェーズ
+    HarvestEnd      // 収穫終了時
 }
 
 [CreateAssetMenu(fileName = "New Occupation Card", menuName = "Agricola/Occupation Card")]
@@ -233,6 +241,31 @@ public class OccupationCard : Card
             case OccupationTrigger.OnReceive:
                 OnReceiveTrigger(player, context);
                 break;
+                
+            // 新しい収穫フェーズ用トリガー
+            case OccupationTrigger.BeforeHarvest:
+                OnBeforeHarvestTrigger(player, context);
+                break;
+                
+            case OccupationTrigger.HarvestStart:
+                OnHarvestStartTrigger(player, context);
+                break;
+                
+            case OccupationTrigger.FieldPhase:
+                OnFieldPhaseTrigger(player, context);
+                break;
+                
+            case OccupationTrigger.FeedingPhase:
+                OnFeedingPhaseTrigger(player, context);
+                break;
+                
+            case OccupationTrigger.BreedingPhase:
+                OnBreedingPhaseTrigger(player, context);
+                break;
+                
+            case OccupationTrigger.HarvestEnd:
+                OnHarvestEndTrigger(player, context);
+                break;
         }
     }
     
@@ -350,6 +383,175 @@ public class OccupationCard : Card
                     }
                     break;
             }
+        }
+    }
+    
+    // 新しい収穫フェーズ用トリガーハンドラー
+    private void OnBeforeHarvestTrigger(Player player, object context)
+    {
+        // 収穫の直前の効果処理
+        switch (occupationType)
+        {
+            case OccupationType.Farmer:
+                // 農夫: 収穫前に畑の準備で穀物+1
+                player.AddResource(ResourceType.Grain, 1);
+                Debug.Log($"農夫効果発動: 収穫前の畑準備で穀物1個獲得");
+                break;
+                
+            case OccupationType.Forester:
+                // 森林管理人: 収穫前に木材の手入れで木材+1
+                player.AddResource(ResourceType.Wood, 1);
+                Debug.Log($"森林管理人効果発動: 収穫前の木材手入れで木材1個獲得");
+                break;
+        }
+    }
+    
+    private void OnHarvestStartTrigger(Player player, object context)
+    {
+        // 収穫の開始時の効果処理
+        switch (occupationType)
+        {
+            case OccupationType.Scholar:
+                // 学者: 収穫開始時に知識による効率化
+                player.AddTempBonus("harvest_efficiency", 1);
+                Debug.Log($"学者効果発動: 収穫開始時に効率化ボーナス獲得");
+                break;
+                
+            case OccupationType.Chief:
+                // 族長: 収穫開始時に全体的な指導効果
+                player.AddTempBonus("leadership_harvest", 1);
+                Debug.Log($"族長効果発動: 収穫開始時に指導効果発動");
+                break;
+        }
+    }
+    
+    private void OnFieldPhaseTrigger(Player player, object context)
+    {
+        // 畑フェーズ（作物収穫）の効果処理
+        switch (occupationType)
+        {
+            case OccupationType.Farmer:
+                // 農夫: 畑フェーズで追加穀物
+                player.AddResource(ResourceType.Grain, 1);
+                Debug.Log($"農夫効果発動: 畑フェーズで追加穀物1個獲得");
+                break;
+                
+            case OccupationType.Craftsman:
+                // 職人: 畑フェーズで野菜の品質向上
+                int vegetableCount = player.GetResource(ResourceType.Vegetable);
+                if (vegetableCount > 0)
+                {
+                    player.AddResource(ResourceType.Food, vegetableCount);
+                    Debug.Log($"職人効果発動: 野菜{vegetableCount}個から食料{vegetableCount}個獲得");
+                }
+                break;
+        }
+    }
+    
+    private void OnFeedingPhaseTrigger(Player player, object context)
+    {
+        // 食料供給フェーズの効果処理
+        switch (occupationType)
+        {
+            case OccupationType.Baker:
+                // パン職人: 食料供給フェーズで穀物→食料変換効率UP
+                int grainCount = player.GetResource(ResourceType.Grain);
+                if (grainCount >= 2)
+                {
+                    player.SpendResource(ResourceType.Grain, 2);
+                    player.AddResource(ResourceType.Food, 3); // 通常2→3に効率UP
+                    Debug.Log($"パン職人効果発動: 穀物2個→食料3個に変換（効率UP）");
+                }
+                break;
+                
+            case OccupationType.Fisherman:
+                // 漁師: 食料供給フェーズで追加食料
+                player.AddResource(ResourceType.Food, 1);
+                Debug.Log($"漁師効果発動: 食料供給フェーズで追加食料1個獲得");
+                break;
+                
+            case OccupationType.Merchant:
+                // 大商人: 食料供給フェーズで食料不足を他リソースで補填
+                int foodNeeded = player.GetFoodNeeded();
+                int foodAvailable = player.GetResource(ResourceType.Food);
+                if (foodNeeded > foodAvailable)
+                {
+                    int shortage = foodNeeded - foodAvailable;
+                    // 他のリソースで補填（木材、粘土、石）
+                    int woodCount = player.GetResource(ResourceType.Wood);
+                    int convertible = Mathf.Min(shortage, woodCount);
+                    if (convertible > 0)
+                    {
+                        player.SpendResource(ResourceType.Wood, convertible);
+                        player.AddResource(ResourceType.Food, convertible);
+                        Debug.Log($"大商人効果発動: 木材{convertible}個→食料{convertible}個に変換");
+                    }
+                }
+                break;
+        }
+    }
+    
+    private void OnBreedingPhaseTrigger(Player player, object context)
+    {
+        // 繁殖フェーズの効果処理
+        switch (occupationType)
+        {
+            case OccupationType.Shepherd:
+                // 羊飼い: 繁殖フェーズで追加羊
+                if (player.GetResource(ResourceType.Sheep) >= 2)
+                {
+                    player.AddResource(ResourceType.Sheep, 1);
+                    Debug.Log($"羊飼い効果発動: 繁殖フェーズで追加羊1匹獲得");
+                }
+                break;
+                
+            case OccupationType.Breeder:
+                // 動物育種家: 繁殖フェーズで全動物の繁殖効率UP
+                if (player.GetResource(ResourceType.Sheep) >= 2 && player.CanHouseAnimals(ResourceType.Sheep, 1))
+                {
+                    player.AddResource(ResourceType.Sheep, 1);
+                    Debug.Log($"動物育種家効果発動: 羊の追加繁殖");
+                }
+                if (player.GetResource(ResourceType.Boar) >= 2 && player.CanHouseAnimals(ResourceType.Boar, 1))
+                {
+                    player.AddResource(ResourceType.Boar, 1);
+                    Debug.Log($"動物育種家効果発動: 猪の追加繁殖");
+                }
+                if (player.GetResource(ResourceType.Cattle) >= 2 && player.CanHouseAnimals(ResourceType.Cattle, 1))
+                {
+                    player.AddResource(ResourceType.Cattle, 1);
+                    Debug.Log($"動物育種家効果発動: 牛の追加繁殖");
+                }
+                break;
+        }
+    }
+    
+    private void OnHarvestEndTrigger(Player player, object context)
+    {
+        // 収穫終了時の効果処理
+        switch (occupationType)
+        {
+            case OccupationType.Advisor:
+                // 顧問: 収穫終了時に次ラウンドの計画で勝利点
+                player.AddVictoryPoints(1);
+                Debug.Log($"顧問効果発動: 収穫終了時に勝利点1点獲得");
+                break;
+                
+            case OccupationType.Stonecutter:
+                // 石工: 収穫終了時に石材の整理で石+1
+                player.AddResource(ResourceType.Stone, 1);
+                Debug.Log($"石工効果発動: 収穫終了時に石1個獲得");
+                break;
+                
+            case OccupationType.Weaver:
+                // 織工: 収穫終了時に羊から追加食料
+                int sheepCount = player.GetResource(ResourceType.Sheep);
+                if (sheepCount > 0)
+                {
+                    player.AddResource(ResourceType.Food, sheepCount / 2);
+                    Debug.Log($"織工効果発動: 羊{sheepCount}匹から食料{sheepCount / 2}個獲得");
+                }
+                break;
         }
     }
 }
