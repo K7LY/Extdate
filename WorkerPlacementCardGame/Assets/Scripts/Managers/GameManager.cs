@@ -293,17 +293,32 @@ public class GameManager : MonoBehaviour
     
     private void ExecuteHarvest()
     {
-        Debug.Log("収穫フェーズを実行中...");
+        Debug.Log("🌾=== 収穫フェーズを実行中... ===");
         
         foreach (Player player in players)
         {
-            // 1. 収穫
+            Debug.Log($"\n--- {player.playerName}の収穫フェーズ ---");
+            
+            // 1. 収穫の直前トリガー
+            Debug.Log("📋 収穫の直前フェーズ");
+            ExecuteAllTriggerableCards(OccupationTrigger.BeforeHarvest, player);
+            
+            // 2. 収穫の開始時トリガー
+            Debug.Log("🚀 収穫の開始時フェーズ");
+            ExecuteAllTriggerableCards(OccupationTrigger.HarvestStart, player);
+            
+            // 3. 畑フェーズ（作物収穫）
+            Debug.Log("🌱 畑フェーズ（作物収穫）");
+            ExecuteAllTriggerableCards(OccupationTrigger.FieldPhase, player);
             player.HarvestCrops();
             
-            // 収穫時のカード効果を発動
+            // 旧仕様との互換性のため、OnHarvestトリガーも発動
             ExecuteAllTriggerableCards(OccupationTrigger.OnHarvest, player);
             
-            // 2. 餌やり
+            // 4. 食料供給フェーズ
+            Debug.Log("🍞 食料供給フェーズ");
+            ExecuteAllTriggerableCards(OccupationTrigger.FeedingPhase, player);
+            
             int beggingCardsReceived = player.FeedFamily();
             if (beggingCardsReceived > 0)
             {
@@ -311,15 +326,25 @@ public class GameManager : MonoBehaviour
                     beggingCards[player] = 0;
                 beggingCards[player] += beggingCardsReceived;
                 
-                Debug.Log($"{player.playerName}が乞食カードを{beggingCardsReceived}枚受け取りました");
+                Debug.Log($"❌ {player.playerName}が乞食カードを{beggingCardsReceived}枚受け取りました");
             }
             
-            // 3. 動物の繁殖
+            // 5. 繁殖フェーズ
+            Debug.Log("🐑 繁殖フェーズ");
+            ExecuteAllTriggerableCards(OccupationTrigger.BreedingPhase, player);
             player.BreedAnimals();
             
-            // 繁殖時のカード効果を発動
+            // 旧仕様との互換性のため、OnBreedingトリガーも発動
             ExecuteAllTriggerableCards(OccupationTrigger.OnBreeding, player);
+            
+            // 6. 収穫終了時トリガー
+            Debug.Log("🏁 収穫終了時フェーズ");
+            ExecuteAllTriggerableCards(OccupationTrigger.HarvestEnd, player);
+            
+            Debug.Log($"✅ {player.playerName}の収穫フェーズ完了");
         }
+        
+        Debug.Log("🌾=== 収穫フェーズ完了 ===\n");
     }
     
     private void EndGame()

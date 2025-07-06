@@ -49,6 +49,21 @@ public class EnhancedOccupationCard : EnhancedCard
                 return CheckHarvestTrigger(effect, player, context);
             case OccupationTrigger.OnBreeding:
                 return CheckBreedingTrigger(effect, player, context);
+            
+            // 新しい収穫フェーズ用トリガー
+            case OccupationTrigger.BeforeHarvest:
+                return CheckBeforeHarvestTrigger(effect, player, context);
+            case OccupationTrigger.HarvestStart:
+                return CheckHarvestStartTrigger(effect, player, context);
+            case OccupationTrigger.FieldPhase:
+                return CheckFieldPhaseTrigger(effect, player, context);
+            case OccupationTrigger.FeedingPhase:
+                return CheckFeedingPhaseTrigger(effect, player, context);
+            case OccupationTrigger.BreedingPhase:
+                return CheckBreedingPhaseTrigger(effect, player, context);
+            case OccupationTrigger.HarvestEnd:
+                return CheckHarvestEndTrigger(effect, player, context);
+            
             default:
                 return base.CheckTriggerCondition(effect, player, context);
         }
@@ -78,6 +93,82 @@ public class EnhancedOccupationCard : EnhancedCard
     {
         // 繁殖トリガーの条件チェック
         return true; // 基本的に全ての繁殖で発動
+    }
+    
+    // 新しい収穫フェーズ用トリガー条件チェック
+    private bool CheckBeforeHarvestTrigger(CardEffect effect, Player player, object context)
+    {
+        // 収穫の直前トリガーの条件チェック
+        return true; // 基本的に全ての収穫前で発動
+    }
+    
+    private bool CheckHarvestStartTrigger(CardEffect effect, Player player, object context)
+    {
+        // 収穫の開始時トリガーの条件チェック
+        return true; // 基本的に全ての収穫開始時で発動
+    }
+    
+    private bool CheckFieldPhaseTrigger(CardEffect effect, Player player, object context)
+    {
+        // 畑フェーズトリガーの条件チェック
+        // 畑を持っているかチェック
+        if (!string.IsNullOrEmpty(effect.triggerCondition))
+        {
+            if (effect.triggerCondition.Contains("has_fields"))
+            {
+                return player.GetFields() > 0;
+            }
+            if (effect.triggerCondition.Contains("has_crops"))
+            {
+                return player.GetTotalCropsInFields(ResourceType.Grain) > 0 ||
+                       player.GetTotalCropsInFields(ResourceType.Vegetable) > 0;
+            }
+        }
+        return true; // 基本的に全ての畑フェーズで発動
+    }
+    
+    private bool CheckFeedingPhaseTrigger(CardEffect effect, Player player, object context)
+    {
+        // 食料供給フェーズトリガーの条件チェック
+        if (!string.IsNullOrEmpty(effect.triggerCondition))
+        {
+            if (effect.triggerCondition.Contains("food_shortage"))
+            {
+                return player.GetFoodNeeded() > player.GetResource(ResourceType.Food);
+            }
+            if (effect.triggerCondition.Contains("has_grain"))
+            {
+                return player.GetResource(ResourceType.Grain) > 0;
+            }
+        }
+        return true; // 基本的に全ての食料供給フェーズで発動
+    }
+    
+    private bool CheckBreedingPhaseTrigger(CardEffect effect, Player player, object context)
+    {
+        // 繁殖フェーズトリガーの条件チェック
+        if (!string.IsNullOrEmpty(effect.triggerCondition))
+        {
+            if (effect.triggerCondition.Contains("has_sheep"))
+            {
+                return player.GetResource(ResourceType.Sheep) >= 2;
+            }
+            if (effect.triggerCondition.Contains("has_boar"))
+            {
+                return player.GetResource(ResourceType.Boar) >= 2;
+            }
+            if (effect.triggerCondition.Contains("has_cattle"))
+            {
+                return player.GetResource(ResourceType.Cattle) >= 2;
+            }
+        }
+        return true; // 基本的に全ての繁殖フェーズで発動
+    }
+    
+    private bool CheckHarvestEndTrigger(CardEffect effect, Player player, object context)
+    {
+        // 収穫終了時トリガーの条件チェック
+        return true; // 基本的に全ての収穫終了時で発動
     }
     
     protected override void ExecuteSpecialEffect(Player player, CardEffect effect)
