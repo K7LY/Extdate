@@ -97,10 +97,7 @@ public class ActionSpace : MonoBehaviour
         if (!CanPlaceWorker())
             return false;
             
-        // 1. 固有効果を実行
-        ExecuteCoreEffects(worker.owner);
-        
-        // 2. 累積アイテムを取得して消費
+        // 1. 累積アイテムを取得して消費
         if (accumulatedItemManager != null)
         {
             var accumulatedItems = accumulatedItemManager.ConsumeAccumulatedItems(actionId);
@@ -110,6 +107,9 @@ public class ActionSpace : MonoBehaviour
                 Debug.Log($"累積アイテム獲得: {GetResourceJapaneseName(item.Key)} x{item.Value}");
             }
         }
+        
+        // 2. 固有効果を実行
+        ExecuteCoreEffects(worker.owner);
         
         // 3. 従来のシステムとの互換性（段階的削除予定）
         ExecuteLegacyResourceGain(worker.owner);
