@@ -24,19 +24,25 @@ public enum ActionType
 
 public class ActionSpace : MonoBehaviour
 {
-    [Header("アクション情報")]
+    [Header("基本情報")]
+    public string actionId;           // 累積システムで使用する一意ID
     public string actionName;
     public string description;
     public ActionType actionType;
     public bool allowMultipleWorkers = false;
     public int maxWorkers = 1;
     
-    [Header("リソース効果")]
-    public Dictionary<ResourceType, int> resourceGain = new Dictionary<ResourceType, int>();
-    public List<ResourceReward> resourceRewards = new List<ResourceReward>();
+    [Header("固有効果のみ")]
+    public List<ActionEffect> coreEffects = new List<ActionEffect>();
     public List<ResourceRequirement> resourceRequirements = new List<ResourceRequirement>();
     public int cardsToDraw = 0;
     public int victoryPoints = 0;
+    
+    [Header("累積システム（従来互換）")]
+    [System.Obsolete("Use AccumulatedItemManager instead")]
+    public Dictionary<ResourceType, int> resourceGain = new Dictionary<ResourceType, int>();
+    [System.Obsolete("Use AccumulatedItemManager instead")]
+    public List<ResourceReward> resourceRewards = new List<ResourceReward>();
     
     [Header("配置されたワーカー")]
     [SerializeField] private List<Worker> placedWorkers = new List<Worker>();
@@ -50,6 +56,9 @@ public class ActionSpace : MonoBehaviour
     public System.Action<Worker> OnWorkerPlaced;
     public System.Action<Worker> OnWorkerRemoved;
     
+    // 累積システムへの参照（読み取り専用）
+    private AccumulatedItemManager accumulatedItemManager;
+    
     void Awake()
     {
         if (backgroundRenderer == null)
@@ -62,6 +71,19 @@ public class ActionSpace : MonoBehaviour
     
     void Start()
     {
+        // 一意IDの自動生成
+        if (string.IsNullOrEmpty(actionId))
+        {
+            actionId = AccumulationUtils.NormalizeActionSpaceId(actionName);
+            if (string.IsNullOrEmpty(actionId))
+            {
+                actionId = $"{actionName}_{GetInstanceID()}";
+            }
+        }
+        
+        // 累積システムへの参照を取得
+        accumulatedItemManager = FindObjectOfType<AccumulatedItemManager>();
+        
         UpdateVisual();
     }
     
@@ -75,14 +97,29 @@ public class ActionSpace : MonoBehaviour
         if (!CanPlaceWorker())
             return false;
             
+        // 1. 累積アイテムを取得して消費
+        if (accumulatedItemManager != null)
+        {
+            var accumulatedItems = accumulatedItemManager.ConsumeAccumulatedItems(actionId);
+            foreach (var item in accumulatedItems)
+            {
+                worker.owner.AddResource(item.Key, item.Value);
+                Debug.Log($"累積アイテム獲得: {GetResourceJapaneseName(item.Key)} x{item.Value}");
+            }
+        }
+        
+        // 2. 固有効果を実行
+        ExecuteCoreEffects(worker.owner);
+        
+        // 3. 従来のシステムとの互換性（段階的削除予定）
+        ExecuteLegacyResourceGain(worker.owner);
+        
+        // 4. ワーカー配置処理
         placedWorkers.Add(worker);
         worker.SetActionSpace(this);
         worker.transform.position = GetWorkerPosition(placedWorkers.Count - 1);
         
-        // アクションを実行
-        ExecuteAction(worker.owner);
-        
-        // 職業効果のトリガー
+        // 5. 職業効果のトリガー
         worker.owner.OnActionExecuted(this);
         
         UpdateVisual();
@@ -128,13 +165,24 @@ public class ActionSpace : MonoBehaviour
         }
     }
     
-    private void ExecuteAction(Player player)
+    /// <summary>
+    /// 固有効果のみを実行（累積アイテムは関与しない）
+    /// </summary>
+    /// <param name="player">対象プレイヤー</param>
+    private void ExecuteCoreEffects(Player player)
     {
+        // 新しいActionEffectシステムによる効果実行
+        foreach (var effect in coreEffects)
+        {
+            if (effect.CanExecute(player))
+            {
+                effect.Execute(player);
+            }
+        }
+        
+        // アクションタイプ別の処理（固有効果のみ）
         switch (actionType)
         {
-            case ActionType.GainResources:
-                ExecuteResourceGain(player);
-                break;
             case ActionType.AddField:
                 ExecuteAddField(player);
                 break;
@@ -189,19 +237,64 @@ public class ActionSpace : MonoBehaviour
         }
     }
     
-    private void ExecuteResourceGain(Player player)
+    /// <summary>
+    /// 従来のリソース獲得システムとの互換性（段階的削除予定）
+    /// </summary>
+    /// <param name="player">対象プレイヤー</param>
+    [System.Obsolete("This method will be removed in future versions")]
+    private void ExecuteLegacyResourceGain(Player player)
     {
         // 従来の resourceGain システム
         foreach (var resource in resourceGain)
         {
             player.AddResource(resource.Key, resource.Value);
+            Debug.Log($"[Legacy] {player.playerName}が{GetResourceJapaneseName(resource.Key)}を{resource.Value}個獲得");
         }
         
-        // 新しい resourceRewards システム
+        // 従来の resourceRewards システム
         foreach (var reward in resourceRewards)
         {
             player.AddResource(reward.resourceType, reward.amount);
+            Debug.Log($"[Legacy] {player.playerName}が{GetResourceJapaneseName(reward.resourceType)}を{reward.amount}個獲得");
         }
+    }
+    
+    /// <summary>
+    /// 累積アイテムの確認（読み取り専用）
+    /// </summary>
+    /// <returns>現在累積されているアイテム</returns>
+    public Dictionary<ResourceType, int> GetAccumulatedItems()
+    {
+        return accumulatedItemManager?.GetAccumulatedItems(actionId) ?? new Dictionary<ResourceType, int>();
+    }
+    
+    /// <summary>
+    /// 累積アイテムが存在するかチェック
+    /// </summary>
+    /// <returns>累積アイテムが存在する場合true</returns>
+    public bool HasAccumulatedItems()
+    {
+        return GetAccumulatedItems().Count > 0;
+    }
+    
+    /// <summary>
+    /// 累積アイテムの総数を取得
+    /// </summary>
+    /// <returns>累積アイテムの総数</returns>
+    public int GetAccumulatedItemCount()
+    {
+        return GetAccumulatedItems().Values.Sum();
+    }
+    
+    /// <summary>
+    /// 特定のリソースの累積量を取得
+    /// </summary>
+    /// <param name="resourceType">リソース種別</param>
+    /// <returns>累積量</returns>
+    public int GetAccumulatedAmount(ResourceType resourceType)
+    {
+        var items = GetAccumulatedItems();
+        return items.ContainsKey(resourceType) ? items[resourceType] : 0;
     }
     
     private void ExecuteAddField(Player player)
@@ -354,7 +447,8 @@ public class ActionSpace : MonoBehaviour
     
     private void ExecuteTakeAnimals(Player player)
     {
-        // アクションスペースで指定された動物を獲得
+        // 固有効果による動物獲得（ActionEffectシステムで処理）
+        // 従来の resourceGain システムとの互換性
         foreach (var resource in resourceGain)
         {
             if (resource.Key == ResourceType.Sheep || 
@@ -399,20 +493,7 @@ public class ActionSpace : MonoBehaviour
     
     private string GetResourceJapaneseName(ResourceType resourceType)
     {
-        switch (resourceType)
-        {
-            case ResourceType.Wood: return "木材";
-            case ResourceType.Clay: return "土";
-            case ResourceType.Reed: return "葦";
-            case ResourceType.Stone: return "石";
-            case ResourceType.Grain: return "穀物";
-            case ResourceType.Vegetable: return "野菜";
-            case ResourceType.Sheep: return "羊";
-            case ResourceType.Boar: return "猪";
-            case ResourceType.Cattle: return "牛";
-            case ResourceType.Food: return "食料";
-            default: return resourceType.ToString();
-        }
+        return AccumulationUtils.GetResourceJapaneseName(resourceType);
     }
     
     private void ExecuteTradeResources(Player player)
