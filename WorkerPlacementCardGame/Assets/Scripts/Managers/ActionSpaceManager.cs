@@ -11,8 +11,14 @@ public class ActionSpaceManager : MonoBehaviour
     private HashSet<ActionSpace> activeActionSpaces = new HashSet<ActionSpace>();
     private Dictionary<ActionSpace, int> delayedActionSpaces = new Dictionary<ActionSpace, int>();
     
+    // 累積システムへの参照
+    private AccumulatedItemManager accumulatedItemManager;
+    
     void Start()
     {
+        // 累積システムへの参照を取得
+        accumulatedItemManager = FindObjectOfType<AccumulatedItemManager>();
+        
         InitializeActionSpaces();
         SetupPhases();
     }
@@ -109,6 +115,7 @@ public class ActionSpaceManager : MonoBehaviour
     {
         Debug.Log($"ラウンド {round} のアクションスペースを解放中...");
         
+        // アクションスペースの解放
         foreach (ActionSpacePhase phase in phases)
         {
             if (phase.startRound == round)
@@ -138,6 +145,9 @@ public class ActionSpaceManager : MonoBehaviour
                 Debug.Log($"  📍 {space.actionName} を解放しました（遅延登録）");
             }
         }
+        
+        // 累積アイテムの補充（固有効果とは完全に分離）
+        ReplenishAccumulatedItems();
     }
     
     public List<ActionSpace> GetActiveActionSpaces()
@@ -150,7 +160,27 @@ public class ActionSpaceManager : MonoBehaviour
         return activeActionSpaces.Contains(actionSpace);
     }
     
-    // アクションスペースにリソースを補充
+    /// <summary>
+    /// 累積アイテムの補充（新しい分離システム）
+    /// </summary>
+    private void ReplenishAccumulatedItems()
+    {
+        if (accumulatedItemManager != null)
+        {
+            // 累積システムに標準的な累積ルールを適用
+            accumulatedItemManager.ApplyStandardAccumulation();
+            Debug.Log("💰 累積アイテムを補充しました");
+        }
+        else
+        {
+            Debug.LogWarning("AccumulatedItemManager が見つかりません");
+        }
+    }
+    
+    /// <summary>
+    /// 従来のリソース補充システム（段階的削除予定）
+    /// </summary>
+    [System.Obsolete("Use ReplenishAccumulatedItems instead")]
     public void ReplenishActionSpaces()
     {
         foreach (ActionSpace space in activeActionSpaces)
@@ -159,6 +189,10 @@ public class ActionSpaceManager : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// 従来のリソース補充（段階的削除予定）
+    /// </summary>
+    [System.Obsolete("Use AccumulatedItemManager instead")]
     private void ReplenishActionSpace(ActionSpace space)
     {
         // アクションスペースのタイプに応じてリソースを補充
