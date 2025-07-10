@@ -122,6 +122,7 @@ public class Player : MonoBehaviour
     public System.Action<ResourceType, int> OnResourceChanged;
     public System.Action<int> OnVictoryPointsChanged;
     public System.Action<Card> OnCardPlayed;
+    public System.Action<int> OnMinorImprovementPlayable;
     
     [Header("タイル管理")]
     [SerializeField] private TileManager tileManager; // TileManagerの参照

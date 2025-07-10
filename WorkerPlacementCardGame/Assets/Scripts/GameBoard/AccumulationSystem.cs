@@ -259,6 +259,11 @@ public class ActionEffect
                 }
                 break;
                 
+            case ActionEffectType.PlayMinorImprovement:
+                // 小さい進歩カードプレイ（別のスクリプトで実装予定）
+                PlayMinorImprovementCard(player, amount);
+                break;
+                
             default:
                 Debug.LogWarning($"[ActionEffect] Unknown effect type: {effectType}");
                 break;
@@ -287,6 +292,32 @@ public class ActionEffect
                 
             default:
                 return true;
+        }
+    }
+    
+    /// <summary>
+    /// 小さい進歩カードをプレイする処理
+    /// </summary>
+    /// <param name="player">対象プレイヤー</param>
+    /// <param name="amount">プレイできるカード数</param>
+    private void PlayMinorImprovementCard(Player player, int amount)
+    {
+        // 別のスクリプトで実装予定の進歩カード管理システムを呼び出し
+        var improvementManager = Object.FindObjectOfType<ImprovementManager>();
+        if (improvementManager != null)
+        {
+            improvementManager.PlayMinorImprovement(player, amount);
+        }
+        else
+        {
+            // プレースホルダー処理：ImprovementManagerが未実装の場合
+            Debug.Log($"[ActionEffect] {player.playerName}が小さい進歩カードを{amount}枚プレイできます（ImprovementManager未実装）");
+            
+            // 仮実装：プレイヤーのOnMinorImprovementPlayableイベントを発火
+            if (player != null)
+            {
+                player.OnMinorImprovementPlayable?.Invoke(amount);
+            }
         }
     }
     
@@ -327,6 +358,7 @@ public enum ActionEffectType
     TakeAnimals,        // 動物獲得
     PlayOccupation,     // 職業カードプレイ
     PlayImprovement,    // 改良カードプレイ
+    PlayMinorImprovement, // 小さい進歩カードプレイ
     StartingPlayer,     // スタートプレイヤー
     TradeResources,     // リソース交換
     SpecialAction       // 特殊アクション
