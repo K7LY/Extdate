@@ -46,7 +46,7 @@ public class ActionSpaceManager : MonoBehaviour
             actionSpaceNames = new List<string>
             {
                 "森", "土取り場", "葦の沼", "漁場", "日雇い労働者",
-                "穀物の種", "畑を耕す", "スタートプレイヤー", "住居の拡張"
+                "穀物の種", "畑を耕す", "職業", "スタートプレイヤー", "住居の拡張"
             }
         });
         

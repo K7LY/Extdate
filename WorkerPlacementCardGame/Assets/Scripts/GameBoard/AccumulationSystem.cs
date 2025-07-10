@@ -264,6 +264,11 @@ public class ActionEffect
                 PlayMinorImprovementCard(player, amount);
                 break;
                 
+            case ActionEffectType.PlayOccupation:
+                // 職業カードプレイ（別のスクリプトで実装予定）
+                PlayOccupationCard(player, amount);
+                break;
+                
             default:
                 Debug.LogWarning($"[ActionEffect] Unknown effect type: {effectType}");
                 break;
@@ -317,6 +322,32 @@ public class ActionEffect
             if (player != null)
             {
                 player.OnMinorImprovementPlayable?.Invoke(amount);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 職業カードをプレイする処理
+    /// </summary>
+    /// <param name="player">対象プレイヤー</param>
+    /// <param name="amount">プレイできるカード数</param>
+    private void PlayOccupationCard(Player player, int amount)
+    {
+        // 別のスクリプトで実装予定の職業カード管理システムを呼び出し
+        var occupationManager = Object.FindObjectOfType<OccupationManager>();
+        if (occupationManager != null)
+        {
+            occupationManager.PlayOccupation(player, amount);
+        }
+        else
+        {
+            // プレースホルダー処理：OccupationManagerが未実装の場合
+            Debug.Log($"[ActionEffect] {player.playerName}が職業カードを{amount}枚プレイできます（OccupationManager未実装）");
+            
+            // 仮実装：プレイヤーのOnOccupationPlayableイベントを発火
+            if (player != null)
+            {
+                player.OnOccupationPlayable?.Invoke(amount);
             }
         }
     }
