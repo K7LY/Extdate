@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
 [System.Serializable]
 public enum ActionType
@@ -476,8 +477,89 @@ public class ActionSpace : MonoBehaviour
     
     private void ExecutePlayImprovement(Player player)
     {
-        Debug.Log($"{player.playerName}が改良カードをプレイできます");
-        // 実際の実装では、小さな進歩または大きな進歩カードを選択
+        DebugLog($"{player.playerName}が進歩カードをプレイできます");
+        
+        // ImprovementManagerを取得
+        var improvementManager = FindObjectOfType<ImprovementManager>();
+        if (improvementManager == null)
+        {
+            Debug.LogWarning("ImprovementManagerが見つかりません");
+            return;
+        }
+        
+        // アクション名に基づいて進歩タイプを決定
+        switch (actionName)
+        {
+            case "小さな進歩":
+            case "職業・小進歩":
+                improvementManager.PlayMinorImprovement(player, 1);
+                break;
+                
+            case "大きな進歩":
+                improvementManager.PlayMajorImprovement(player, 1);
+                break;
+                
+            case "改良":
+            case "進歩カード":
+                // 両方のオプションを提供（プレイヤーが選択）
+                ShowImprovementOptions(player, improvementManager);
+                break;
+                
+            default:
+                // デフォルトは小さな進歩
+                improvementManager.PlayMinorImprovement(player, 1);
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// 進歩カードのオプション選択を表示
+    /// </summary>
+    /// <param name="player">対象プレイヤー</param>
+    /// <param name="improvementManager">ImprovementManager</param>
+    private void ShowImprovementOptions(Player player, ImprovementManager improvementManager)
+    {
+        DebugLog($"=== {player.playerName}の進歩カード選択 ===");
+        
+        // プレイ可能なオプションをチェック
+        var playableMinor = improvementManager.GetPlayableMinorImprovements(player);
+        var playableMajor = improvementManager.GetPlayableMajorImprovements(player);
+        
+        DebugLog($"小さい進歩: {playableMinor.Count}枚プレイ可能");
+        DebugLog($"大きい進歩: {playableMajor.Count}枚プレイ可能");
+        
+        // 簡易AI判断（将来的にはUIで選択）
+        if (playableMajor.Count > 0 && playableMinor.Count > 0)
+        {
+            // 両方プレイ可能な場合は価値の高い方を選択
+            var bestMajor = playableMajor.OrderByDescending(c => c.GetVictoryPoints()).FirstOrDefault();
+            var bestMinor = playableMinor.OrderByDescending(c => c.GetVictoryPoints()).FirstOrDefault();
+            
+            if (bestMajor != null && bestMajor.GetVictoryPoints() >= bestMinor?.GetVictoryPoints())
+            {
+                DebugLog($"大きい進歩を選択: {bestMajor.cardName}");
+                improvementManager.PlayMajorImprovement(player, 1);
+            }
+            else
+            {
+                DebugLog($"小さい進歩を選択: {bestMinor?.cardName}");
+                improvementManager.PlayMinorImprovement(player, 1);
+            }
+        }
+        else if (playableMajor.Count > 0)
+        {
+            DebugLog("大きい進歩のみプレイ可能");
+            improvementManager.PlayMajorImprovement(player, 1);
+        }
+        else if (playableMinor.Count > 0)
+        {
+            DebugLog("小さい進歩のみプレイ可能");
+            improvementManager.PlayMinorImprovement(player, 1);
+        }
+        else
+        {
+            DebugLog("プレイ可能な進歩カードがありません");
+        }
     }
     
     private void ExecuteStartingPlayer(Player player)
@@ -494,6 +576,11 @@ public class ActionSpace : MonoBehaviour
     private string GetResourceJapaneseName(ResourceType resourceType)
     {
         return AccumulationUtils.GetResourceJapaneseName(resourceType);
+    }
+    
+    private void DebugLog(string message)
+    {
+        Debug.Log($"[ActionSpace:{actionName}] {message}");
     }
     
     private void ExecuteTradeResources(Player player)

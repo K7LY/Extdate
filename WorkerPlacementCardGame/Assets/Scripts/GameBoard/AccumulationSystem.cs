@@ -260,12 +260,17 @@ public class ActionEffect
                 break;
                 
             case ActionEffectType.PlayMinorImprovement:
-                // 小さい進歩カードプレイ（別のスクリプトで実装予定）
+                // 小さい進歩カードプレイ
                 PlayMinorImprovementCard(player, amount);
                 break;
                 
+            case ActionEffectType.PlayMajorImprovement:
+                // 大きい進歩カードプレイ
+                PlayMajorImprovementCard(player, amount);
+                break;
+                
             case ActionEffectType.PlayOccupation:
-                // 職業カードプレイ（別のスクリプトで実装予定）
+                // 職業カードプレイ
                 PlayOccupationCard(player, amount);
                 break;
                 
@@ -301,24 +306,25 @@ public class ActionEffect
     }
     
     /// <summary>
-    /// 小さい進歩カードをプレイする処理
+    /// 小さい進歩カードをプレイする処理（包括的実装）
     /// </summary>
     /// <param name="player">対象プレイヤー</param>
     /// <param name="amount">プレイできるカード数</param>
     private void PlayMinorImprovementCard(Player player, int amount)
     {
-        // 別のスクリプトで実装予定の進歩カード管理システムを呼び出し
+        // 包括的な進歩カード管理システムを呼び出し
         var improvementManager = Object.FindObjectOfType<ImprovementManager>();
         if (improvementManager != null)
         {
+            Debug.Log($"[ActionEffect] {player.playerName}が小さい進歩カード{amount}枚をプレイ開始");
             improvementManager.PlayMinorImprovement(player, amount);
         }
         else
         {
-            // プレースホルダー処理：ImprovementManagerが未実装の場合
-            Debug.Log($"[ActionEffect] {player.playerName}が小さい進歩カードを{amount}枚プレイできます（ImprovementManager未実装）");
+            // フォールバック処理：ImprovementManagerが見つからない場合
+            Debug.LogWarning($"[ActionEffect] ImprovementManagerが見つかりません。進歩カードプレイをスキップします。");
             
-            // 仮実装：プレイヤーのOnMinorImprovementPlayableイベントを発火
+            // プレイヤーイベントで通知（UI側でのハンドリング用）
             if (player != null)
             {
                 player.OnMinorImprovementPlayable?.Invoke(amount);
@@ -333,21 +339,49 @@ public class ActionEffect
     /// <param name="amount">プレイできるカード数</param>
     private void PlayOccupationCard(Player player, int amount)
     {
-        // 別のスクリプトで実装予定の職業カード管理システムを呼び出し
+        // 職業カード管理システムを呼び出し
         var occupationManager = Object.FindObjectOfType<OccupationManager>();
         if (occupationManager != null)
         {
+            Debug.Log($"[ActionEffect] {player.playerName}が職業カード{amount}枚をプレイ開始");
             occupationManager.PlayOccupation(player, amount);
         }
         else
         {
-            // プレースホルダー処理：OccupationManagerが未実装の場合
-            Debug.Log($"[ActionEffect] {player.playerName}が職業カードを{amount}枚プレイできます（OccupationManager未実装）");
+            // フォールバック処理：OccupationManagerが見つからない場合
+            Debug.LogWarning($"[ActionEffect] OccupationManagerが見つかりません。職業カードプレイをスキップします。");
             
-            // 仮実装：プレイヤーのOnOccupationPlayableイベントを発火
+            // プレイヤーイベントで通知（UI側でのハンドリング用）
             if (player != null)
             {
                 player.OnOccupationPlayable?.Invoke(amount);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 大きい進歩カードをプレイする処理
+    /// </summary>
+    /// <param name="player">対象プレイヤー</param>
+    /// <param name="amount">プレイできるカード数</param>
+    private void PlayMajorImprovementCard(Player player, int amount)
+    {
+        // 包括的な進歩カード管理システムを呼び出し
+        var improvementManager = Object.FindObjectOfType<ImprovementManager>();
+        if (improvementManager != null)
+        {
+            Debug.Log($"[ActionEffect] {player.playerName}が大きい進歩カード{amount}枚をプレイ開始");
+            improvementManager.PlayMajorImprovement(player, amount);
+        }
+        else
+        {
+            // フォールバック処理：ImprovementManagerが見つからない場合
+            Debug.LogWarning($"[ActionEffect] ImprovementManagerが見つかりません。大きい進歩カードプレイをスキップします。");
+            
+            // プレイヤーイベントで通知（UI側でのハンドリング用）
+            if (player != null)
+            {
+                player.OnMajorImprovementPlayable?.Invoke(amount);
             }
         }
     }
@@ -390,6 +424,7 @@ public enum ActionEffectType
     PlayOccupation,     // 職業カードプレイ
     PlayImprovement,    // 改良カードプレイ
     PlayMinorImprovement, // 小さい進歩カードプレイ
+    PlayMajorImprovement, // 大きい進歩カードプレイ
     StartingPlayer,     // スタートプレイヤー
     TradeResources,     // リソース交換
     SpecialAction       // 特殊アクション
