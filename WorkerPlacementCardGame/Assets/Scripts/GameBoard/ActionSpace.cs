@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
 [System.Serializable]
 public enum ActionType
@@ -476,8 +477,43 @@ public class ActionSpace : MonoBehaviour
     
     private void ExecutePlayImprovement(Player player)
     {
-        Debug.Log($"{player.playerName}が改良カードをプレイできます");
-        // 実際の実装では、小さな進歩または大きな進歩カードを選択
+        DebugLog($"{player.playerName}が進歩カードをプレイできます");
+        
+        // ImprovementManagerを取得
+        var improvementManager = FindObjectOfType<ImprovementManager>();
+        if (improvementManager == null)
+        {
+            Debug.LogWarning("ImprovementManagerが見つかりません");
+            return;
+        }
+        
+        // アクション名に基づいて進歩タイプを決定
+        switch (actionName)
+        {
+            case "小さな進歩":
+                improvementManager.PlayImprovement(player, true, false, 1);
+                break;
+                
+            case "大きな進歩":
+                improvementManager.PlayImprovement(player, false, true, 1);
+                break;
+                
+            case "職業・小進歩":
+                // 職業カードも含むが、ここでは小さい進歩のみ対応
+                improvementManager.PlayImprovement(player, true, false, 1);
+                break;
+                
+            case "改良":
+            case "進歩カード":
+                // 両方のオプションを提供（プレイヤーが選択）
+                improvementManager.PlayImprovement(player, true, true, 1);
+                break;
+                
+            default:
+                // デフォルトは小さな進歩
+                improvementManager.PlayImprovement(player, true, false, 1);
+                break;
+        }
     }
     
     private void ExecuteStartingPlayer(Player player)
@@ -494,6 +530,11 @@ public class ActionSpace : MonoBehaviour
     private string GetResourceJapaneseName(ResourceType resourceType)
     {
         return AccumulationUtils.GetResourceJapaneseName(resourceType);
+    }
+    
+    private void DebugLog(string message)
+    {
+        Debug.Log($"[ActionSpace:{actionName}] {message}");
     }
     
     private void ExecuteTradeResources(Player player)
