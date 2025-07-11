@@ -98,120 +98,117 @@ public class ImprovementManager : MonoBehaviour
     }
     
     /// <summary>
-    /// 小さい進歩カードをプレイする（包括的な実装）
+    /// 進歩カードをプレイする（プレイヤー選択システム）
+    /// </summary>
+    /// <param name="player">対象プレイヤー</param>
+    /// <param name="allowMinor">小さい進歩を許可するか</param>
+    /// <param name="allowMajor">大きい進歩を許可するか</param>
+    /// <param name="maxCount">プレイできる最大カード数</param>
+    public void PlayImprovement(Player player, bool allowMinor, bool allowMajor, int maxCount = 1)
+    {
+        if (player == null)
+        {
+            DebugLog("プレイヤーが指定されていません");
+            return;
+        }
+        
+        DebugLog($"=== {player.playerName}の進歩カードプレイ開始 ===");
+        DebugLog($"小さい進歩: {(allowMinor ? "許可" : "不許可")}");
+        DebugLog($"大きい進歩: {(allowMajor ? "許可" : "不許可")}");
+        DebugLog($"最大プレイ可能枚数: {maxCount}枚");
+        
+        // 利用可能な進歩カードを取得
+        var availableCards = GetAvailableImprovements(player, allowMinor, allowMajor);
+        
+        if (availableCards.Count == 0)
+        {
+            DebugLog($"{player.playerName}はプレイ可能な進歩カードがありません");
+            ShowNoAvailableCardsMessage(player, allowMinor, allowMajor);
+            return;
+        }
+        
+        // プレイヤーに選択肢を提示
+        ShowImprovementSelectionToPlayer(player, availableCards, maxCount);
+    }
+    
+    /// <summary>
+    /// 小さい進歩カードをプレイする（後方互換性）
     /// </summary>
     /// <param name="player">対象プレイヤー</param>
     /// <param name="maxCount">プレイできる最大カード数</param>
     public void PlayMinorImprovement(Player player, int maxCount = 1)
     {
-        if (player == null)
-        {
-            DebugLog("プレイヤーが指定されていません");
-            return;
-        }
-        
-        DebugLog($"=== {player.playerName}の小さい進歩カードプレイ開始 ===");
-        DebugLog($"最大プレイ可能枚数: {maxCount}枚");
-        
-        // プレイ可能な小さい進歩カードを取得
-        var playableCards = GetPlayableMinorImprovements(player);
-        
-        if (playableCards.Count == 0)
-        {
-            DebugLog($"{player.playerName}はプレイ可能な小さい進歩カードを持っていません");
-            ShowNoPlayableCardsMessage(player, ImprovementCategory.Minor);
-            return;
-        }
-        
-        DebugLog($"プレイ可能な小さい進歩カード: {playableCards.Count}枚");
-        foreach (var card in playableCards)
-        {
-            DebugLog($"  - {card.cardName} (コスト: {GetResourceCostString(card.GetPlayCost())})");
-        }
-        
-        // カード選択処理を開始
-        StartImprovementSelection(player, playableCards, maxCount, ImprovementCategory.Minor);
+        PlayImprovement(player, true, false, maxCount);
     }
     
     /// <summary>
-    /// 大きい進歩カードをプレイする（包括的な実装）
+    /// 大きい進歩カードをプレイする（後方互換性）
     /// </summary>
     /// <param name="player">対象プレイヤー</param>
     /// <param name="maxCount">プレイできる最大カード数</param>
     public void PlayMajorImprovement(Player player, int maxCount = 1)
     {
-        if (player == null)
-        {
-            DebugLog("プレイヤーが指定されていません");
-            return;
-        }
-        
-        DebugLog($"=== {player.playerName}の大きい進歩カードプレイ開始 ===");
-        DebugLog($"最大プレイ可能枚数: {maxCount}枚");
-        
-        // プレイ可能な大きい進歩カードを取得
-        var playableCards = GetPlayableMajorImprovements(player);
-        
-        if (playableCards.Count == 0)
-        {
-            DebugLog($"{player.playerName}はプレイ可能な大きい進歩カードがありません");
-            ShowNoPlayableCardsMessage(player, ImprovementCategory.Major);
-            return;
-        }
-        
-        DebugLog($"プレイ可能な大きい進歩カード: {playableCards.Count}枚");
-        foreach (var card in playableCards)
-        {
-            DebugLog($"  - {card.cardName} (コスト: {GetResourceCostString(card.GetPlayCost())})");
-        }
-        
-        // カード選択処理を開始
-        StartImprovementSelection(player, playableCards, maxCount, ImprovementCategory.Major);
+        PlayImprovement(player, false, true, maxCount);
     }
     
     /// <summary>
-    /// プレイ可能な小さい進歩カードを取得
+    /// 利用可能な進歩カードを取得（未プレイの大進歩 + 手札の小進歩）
+    /// </summary>
+    /// <param name="player">対象プレイヤー</param>
+    /// <param name="includeMinor">小さい進歩を含めるか</param>
+    /// <param name="includeMajor">大きい進歩を含めるか</param>
+    /// <returns>利用可能な進歩カードのリスト（選択肢として表示用）</returns>
+    public List<EnhancedImprovementCard> GetAvailableImprovements(Player player, bool includeMinor, bool includeMajor)
+    {
+        if (player == null) return new List<EnhancedImprovementCard>();
+        
+        var availableCards = new List<EnhancedImprovementCard>();
+        
+        // 小さい進歩カード（手札から）
+        if (includeMinor)
+        {
+            var playerMinorCards = player.GetMinorImprovements().Cast<EnhancedImprovementCard>().ToList();
+            foreach (var card in playerMinorCards)
+            {
+                availableCards.Add(card);
+            }
+        }
+        
+        // 大きい進歩カード（未プレイのもの）
+        if (includeMajor)
+        {
+            foreach (var card in availableMajorImprovements)
+            {
+                if (!player.HasImprovementByName(card.cardName))
+                {
+                    availableCards.Add(card);
+                }
+            }
+        }
+        
+        return availableCards;
+    }
+    
+    /// <summary>
+    /// プレイ可能な小さい進歩カードを取得（後方互換性）
     /// </summary>
     /// <param name="player">対象プレイヤー</param>
     /// <returns>プレイ可能な小さい進歩カードのリスト</returns>
     public List<EnhancedImprovementCard> GetPlayableMinorImprovements(Player player)
     {
-        if (player == null) return new List<EnhancedImprovementCard>();
-        
-        var playerCards = player.GetMinorImprovements().Cast<EnhancedImprovementCard>().ToList();
-        var playableCards = new List<EnhancedImprovementCard>();
-        
-        foreach (var card in playerCards)
-        {
-            if (CanPlayImprovement(player, card))
-            {
-                playableCards.Add(card);
-            }
-        }
-        
-        return playableCards;
+        var availableCards = GetAvailableImprovements(player, true, false);
+        return availableCards.Where(card => CanPlayImprovement(player, card)).ToList();
     }
     
     /// <summary>
-    /// プレイ可能な大きい進歩カードを取得
+    /// プレイ可能な大きい進歩カードを取得（後方互換性）
     /// </summary>
     /// <param name="player">対象プレイヤー</param>
     /// <returns>プレイ可能な大きい進歩カードのリスト</returns>
     public List<EnhancedImprovementCard> GetPlayableMajorImprovements(Player player)
     {
-        if (player == null) return new List<EnhancedImprovementCard>();
-        
-        var playableCards = new List<EnhancedImprovementCard>();
-        
-        foreach (var card in availableMajorImprovements)
-        {
-            if (CanPlayImprovement(player, card) && !player.HasImprovementByName(card.cardName))
-            {
-                playableCards.Add(card);
-            }
-        }
-        
-        return playableCards;
+        var availableCards = GetAvailableImprovements(player, false, true);
+        return availableCards.Where(card => CanPlayImprovement(player, card)).ToList();
     }
     
     /// <summary>
@@ -301,143 +298,94 @@ public class ImprovementManager : MonoBehaviour
     }
     
     /// <summary>
-    /// 進歩カード選択処理を開始
+    /// プレイヤーに進歩カード選択肢を表示
     /// </summary>
     /// <param name="player">対象プレイヤー</param>
-    /// <param name="availableCards">選択可能なカード</param>
+    /// <param name="availableCards">利用可能なカード</param>
     /// <param name="maxCount">最大選択可能数</param>
-    /// <param name="category">進歩カテゴリ</param>
-    private void StartImprovementSelection(Player player, List<EnhancedImprovementCard> availableCards, int maxCount, ImprovementCategory category)
+    private void ShowImprovementSelectionToPlayer(Player player, List<EnhancedImprovementCard> availableCards, int maxCount)
     {
-        DebugLog($"進歩カード選択開始: {category}, 選択可能{availableCards.Count}枚, 最大{maxCount}枚");
+        DebugLog($"=== {player.playerName}の進歩カード選択 ===");
+        DebugLog($"利用可能カード数: {availableCards.Count}枚");
+        DebugLog($"最大選択可能数: {maxCount}枚");
+        
+        // カード一覧を表示
+        for (int i = 0; i < availableCards.Count; i++)
+        {
+            var card = availableCards[i];
+            var category = card.category == ImprovementCategory.Minor ? "小進歩" : "大進歩";
+            var cost = GetResourceCostString(card.GetPlayCost());
+            var playable = CanPlayImprovement(player, card) ? "プレイ可能" : "プレイ不可";
+            var reason = CanPlayImprovement(player, card) ? "" : $"（{GetUnplayableReason(player, card)}）";
+            
+            DebugLog($"  [{i + 1}] {card.cardName} ({category})");
+            DebugLog($"      コスト: {cost}");
+            DebugLog($"      勝利点: {card.GetVictoryPoints()}点");
+            DebugLog($"      状態: {playable} {reason}");
+        }
         
         // UIシステムに進歩カード選択開始を通知
         OnImprovementSelectionStarted?.Invoke(player, availableCards);
         
-        // 現在はAIによる自動選択を実装（将来的にはUIによる手動選択に置き換え）
-        if (gameManager != null && gameManager.IsAIPlayer(player))
-        {
-            // AI自動選択
-            var selectedCards = SelectCardsForAI(player, availableCards, maxCount);
-            ProcessSelectedImprovements(player, selectedCards, category);
-        }
-        else
-        {
-            // 人間プレイヤーの場合は簡易自動選択（UIが実装されるまでの暫定処理）
-            DebugLog($"UIによる手動選択は未実装のため、自動選択を行います");
-            var selectedCards = SelectCardsForAI(player, availableCards, Math.Min(1, maxCount));
-            ProcessSelectedImprovements(player, selectedCards, category);
-        }
+        DebugLog("プレイヤーの選択を待機中... (UIが実装されるまでは手動で ExecuteSelectedImprovement を呼び出してください)");
     }
     
     /// <summary>
-    /// AIプレイヤー用のカード選択ロジック
+    /// プレイヤーが選択した進歩カードを実行
     /// </summary>
     /// <param name="player">対象プレイヤー</param>
-    /// <param name="availableCards">選択可能なカード</param>
-    /// <param name="maxCount">最大選択数</param>
-    /// <returns>選択されたカード</returns>
-    private List<EnhancedImprovementCard> SelectCardsForAI(Player player, List<EnhancedImprovementCard> availableCards, int maxCount)
+    /// <param name="selectedCard">選択されたカード</param>
+    /// <returns>実行に成功した場合true</returns>
+    public bool ExecuteSelectedImprovement(Player player, EnhancedImprovementCard selectedCard)
     {
-        var selectedCards = new List<EnhancedImprovementCard>();
-        var sortedCards = availableCards.OrderByDescending(card => EvaluateCardForAI(player, card)).ToList();
-        
-        int selectedCount = 0;
-        foreach (var card in sortedCards)
+        if (player == null)
         {
-            if (selectedCount >= maxCount) break;
-            
-            if (CanPlayImprovement(player, card))
+            DebugLog("プレイヤーが指定されていません");
+            return false;
+        }
+        
+        if (selectedCard == null)
+        {
+            DebugLog("選択されたカードが指定されていません");
+            return false;
+        }
+        
+        DebugLog($"=== 選択された進歩カードの実行 ===");
+        DebugLog($"プレイヤー: {player.playerName}");
+        DebugLog($"選択カード: {selectedCard.cardName}");
+        
+        // 実行条件とコストを確認
+        if (!CanPlayImprovement(player, selectedCard))
+        {
+            var reason = GetUnplayableReason(player, selectedCard);
+            DebugLog($"❌ カードをプレイできません: {reason}");
+            return false;
+        }
+        
+        // カードを実行
+        if (ExecuteImprovementPlay(player, selectedCard))
+        {
+            // 統計更新とイベント発火
+            if (selectedCard.category == ImprovementCategory.Minor)
             {
-                selectedCards.Add(card);
-                selectedCount++;
-                DebugLog($"AI選択: {card.cardName} (評価値: {EvaluateCardForAI(player, card)})");
-            }
-        }
-        
-        return selectedCards;
-    }
-    
-    /// <summary>
-    /// AIのためのカード評価値を計算
-    /// </summary>
-    /// <param name="player">対象プレイヤー</param>
-    /// <param name="card">評価するカード</param>
-    /// <returns>評価値（高いほど優先）</returns>
-    private float EvaluateCardForAI(Player player, EnhancedImprovementCard card)
-    {
-        float value = 0f;
-        
-        // 勝利点を重視
-        value += card.GetVictoryPoints() * 10f;
-        
-        // リソースコストの評価（低コストほど高評価）
-        var cost = card.GetPlayCost();
-        float totalCost = cost.Values.Sum();
-        value += (10f - totalCost) * 2f;
-        
-        // カード固有の価値評価
-        switch (card.cardName)
-        {
-            case "土のかまど":
-                value += 15f; // 基本的な調理設備として高価値
-                break;
-            case "暖炉":
-                value += 20f; // 多くの他のカードの前提条件
-                break;
-            case "かご":
-                value += 8f; // 野菜収穫時のボーナス
-                break;
-            case "陶器":
-                value += 12f; // 食料変換効率向上
-                break;
-        }
-        
-        return value;
-    }
-    
-    /// <summary>
-    /// 選択された進歩カードを処理
-    /// </summary>
-    /// <param name="player">対象プレイヤー</param>
-    /// <param name="selectedCards">選択されたカード</param>
-    /// <param name="category">進歩カテゴリ</param>
-    private void ProcessSelectedImprovements(Player player, List<EnhancedImprovementCard> selectedCards, ImprovementCategory category)
-    {
-        if (selectedCards.Count == 0)
-        {
-            DebugLog($"{player.playerName}は進歩カードを選択しませんでした");
-            return;
-        }
-        
-        DebugLog($"=== 進歩カードプレイ処理開始 ===");
-        
-        foreach (var card in selectedCards)
-        {
-            if (ExecuteImprovementPlay(player, card))
-            {
-                // 統計更新
-                if (category == ImprovementCategory.Minor)
-                {
-                    totalMinorImprovementsPlayed++;
-                    OnMinorImprovementPlayed?.Invoke(player, card);
-                }
-                else
-                {
-                    totalMajorImprovementsPlayed++;
-                    OnMajorImprovementPlayed?.Invoke(player, card);
-                }
-                
-                DebugLog($"✅ {player.playerName}が進歩「{card.cardName}」をプレイしました");
+                totalMinorImprovementsPlayed++;
+                OnMinorImprovementPlayed?.Invoke(player, selectedCard);
             }
             else
             {
-                DebugLog($"❌ {player.playerName}の進歩「{card.cardName}」のプレイに失敗しました");
+                totalMajorImprovementsPlayed++;
+                OnMajorImprovementPlayed?.Invoke(player, selectedCard);
             }
+            
+            DebugLog($"✅ {player.playerName}が進歩「{selectedCard.cardName}」をプレイしました");
+            ShowPlayedImprovementsSummary(player, new List<EnhancedImprovementCard> { selectedCard });
+            return true;
         }
-        
-        DebugLog($"=== 進歩カードプレイ処理完了 ===");
-        ShowPlayedImprovementsSummary(player, selectedCards);
+        else
+        {
+            DebugLog($"❌ {player.playerName}の進歩「{selectedCard.cardName}」のプレイに失敗しました");
+            return false;
+        }
     }
     
     /// <summary>
@@ -496,40 +444,49 @@ public class ImprovementManager : MonoBehaviour
     }
     
     /// <summary>
-    /// プレイできる進歩カードがない場合のメッセージ表示
+    /// 利用可能な進歩カードがない場合のメッセージ表示
     /// </summary>
     /// <param name="player">対象プレイヤー</param>
-    /// <param name="category">進歩カテゴリ</param>
-    private void ShowNoPlayableCardsMessage(Player player, ImprovementCategory category)
+    /// <param name="includeMinor">小さい進歩を含めるか</param>
+    /// <param name="includeMajor">大きい進歩を含めるか</param>
+    private void ShowNoAvailableCardsMessage(Player player, bool includeMinor, bool includeMajor)
     {
-        string categoryName = category == ImprovementCategory.Minor ? "小さい進歩" : "大きい進歩";
-        
-        DebugLog($"=== {categoryName}カードプレイ不可能 ===");
+        DebugLog($"=== 進歩カードプレイ不可能 ===");
         DebugLog($"プレイヤー: {player.playerName}");
+        DebugLog($"対象: 小進歩{(includeMinor ? "○" : "×")} 大進歩{(includeMajor ? "○" : "×")}");
         DebugLog($"理由分析:");
         
-        if (category == ImprovementCategory.Minor)
+        if (includeMinor)
         {
             var allMinorCards = player.GetMinorImprovements().Cast<EnhancedImprovementCard>().ToList();
-            DebugLog($"  手札の{categoryName}カード数: {allMinorCards.Count}枚");
+            DebugLog($"  手札の小さい進歩カード数: {allMinorCards.Count}枚");
             
-            foreach (var card in allMinorCards)
+            if (allMinorCards.Count == 0)
             {
-                var reason = GetUnplayableReason(player, card);
-                DebugLog($"    {card.cardName}: {reason}");
+                DebugLog($"    小さい進歩カードを手札に持っていません");
+            }
+            else
+            {
+                foreach (var card in allMinorCards)
+                {
+                    var reason = GetUnplayableReason(player, card);
+                    DebugLog($"    {card.cardName}: {reason}");
+                }
             }
         }
-        else
+        
+        if (includeMajor)
         {
-            DebugLog($"  利用可能な{categoryName}カード数: {availableMajorImprovements.Count}枚");
+            var availableMajorCards = availableMajorImprovements.Where(card => !player.HasImprovementByName(card.cardName)).ToList();
+            DebugLog($"  利用可能な大きい進歩カード数: {availableMajorCards.Count}枚");
             
-            foreach (var card in availableMajorImprovements)
+            if (availableMajorCards.Count == 0)
             {
-                if (player.HasImprovementByName(card.cardName))
-                {
-                    DebugLog($"    {card.cardName}: 既にプレイ済み");
-                }
-                else
+                DebugLog($"    未プレイの大きい進歩カードがありません");
+            }
+            else
+            {
+                foreach (var card in availableMajorCards)
                 {
                     var reason = GetUnplayableReason(player, card);
                     DebugLog($"    {card.cardName}: {reason}");

@@ -491,74 +491,28 @@ public class ActionSpace : MonoBehaviour
         switch (actionName)
         {
             case "小さな進歩":
-            case "職業・小進歩":
-                improvementManager.PlayMinorImprovement(player, 1);
+                improvementManager.PlayImprovement(player, true, false, 1);
                 break;
                 
             case "大きな進歩":
-                improvementManager.PlayMajorImprovement(player, 1);
+                improvementManager.PlayImprovement(player, false, true, 1);
+                break;
+                
+            case "職業・小進歩":
+                // 職業カードも含むが、ここでは小さい進歩のみ対応
+                improvementManager.PlayImprovement(player, true, false, 1);
                 break;
                 
             case "改良":
             case "進歩カード":
                 // 両方のオプションを提供（プレイヤーが選択）
-                ShowImprovementOptions(player, improvementManager);
+                improvementManager.PlayImprovement(player, true, true, 1);
                 break;
                 
             default:
                 // デフォルトは小さな進歩
-                improvementManager.PlayMinorImprovement(player, 1);
+                improvementManager.PlayImprovement(player, true, false, 1);
                 break;
-        }
-    }
-    
-    /// <summary>
-    /// 進歩カードのオプション選択を表示
-    /// </summary>
-    /// <param name="player">対象プレイヤー</param>
-    /// <param name="improvementManager">ImprovementManager</param>
-    private void ShowImprovementOptions(Player player, ImprovementManager improvementManager)
-    {
-        DebugLog($"=== {player.playerName}の進歩カード選択 ===");
-        
-        // プレイ可能なオプションをチェック
-        var playableMinor = improvementManager.GetPlayableMinorImprovements(player);
-        var playableMajor = improvementManager.GetPlayableMajorImprovements(player);
-        
-        DebugLog($"小さい進歩: {playableMinor.Count}枚プレイ可能");
-        DebugLog($"大きい進歩: {playableMajor.Count}枚プレイ可能");
-        
-        // 簡易AI判断（将来的にはUIで選択）
-        if (playableMajor.Count > 0 && playableMinor.Count > 0)
-        {
-            // 両方プレイ可能な場合は価値の高い方を選択
-            var bestMajor = playableMajor.OrderByDescending(c => c.GetVictoryPoints()).FirstOrDefault();
-            var bestMinor = playableMinor.OrderByDescending(c => c.GetVictoryPoints()).FirstOrDefault();
-            
-            if (bestMajor != null && bestMajor.GetVictoryPoints() >= bestMinor?.GetVictoryPoints())
-            {
-                DebugLog($"大きい進歩を選択: {bestMajor.cardName}");
-                improvementManager.PlayMajorImprovement(player, 1);
-            }
-            else
-            {
-                DebugLog($"小さい進歩を選択: {bestMinor?.cardName}");
-                improvementManager.PlayMinorImprovement(player, 1);
-            }
-        }
-        else if (playableMajor.Count > 0)
-        {
-            DebugLog("大きい進歩のみプレイ可能");
-            improvementManager.PlayMajorImprovement(player, 1);
-        }
-        else if (playableMinor.Count > 0)
-        {
-            DebugLog("小さい進歩のみプレイ可能");
-            improvementManager.PlayMinorImprovement(player, 1);
-        }
-        else
-        {
-            DebugLog("プレイ可能な進歩カードがありません");
         }
     }
     

@@ -206,7 +206,7 @@ public class ProgressActionConfiguration : ScriptableObject
     private bool ExecuteMinorImprovementAction(ProgressActionSetup action, Player player, ImprovementManager improvementManager)
     {
         DebugLog("小さい進歩アクション実行");
-        improvementManager.PlayMinorImprovement(player, action.maxCardsPerUse);
+        improvementManager.PlayImprovement(player, true, false, action.maxCardsPerUse);
         return true;
     }
     
@@ -216,7 +216,7 @@ public class ProgressActionConfiguration : ScriptableObject
     private bool ExecuteMajorImprovementAction(ProgressActionSetup action, Player player, ImprovementManager improvementManager)
     {
         DebugLog("大きい進歩アクション実行");
-        improvementManager.PlayMajorImprovement(player, action.maxCardsPerUse);
+        improvementManager.PlayImprovement(player, false, true, action.maxCardsPerUse);
         return true;
     }
     
@@ -229,40 +229,14 @@ public class ProgressActionConfiguration : ScriptableObject
         
         if (action.allowPlayerChoice)
         {
-            // プレイヤーに選択肢を提示（簡易AI判断）
-            var playableMinor = improvementManager.GetPlayableMinorImprovements(player);
-            var occupationManager = FindObjectOfType<OccupationManager>();
-            bool canPlayOccupation = occupationManager != null && player.GetOccupations().Count < player.GetMaxOccupations();
-            
-            if (playableMinor.Count > 0 && canPlayOccupation)
-            {
-                // 両方プレイ可能な場合の簡易判断
-                if (playableMinor.Count >= 2)
-                {
-                    DebugLog("小さい進歩を選択");
-                    improvementManager.PlayMinorImprovement(player, 1);
-                }
-                else
-                {
-                    DebugLog("職業カードを選択");
-                    occupationManager.PlayOccupation(player, 1);
-                }
-            }
-            else if (playableMinor.Count > 0)
-            {
-                DebugLog("小さい進歩のみプレイ可能");
-                improvementManager.PlayMinorImprovement(player, 1);
-            }
-            else if (canPlayOccupation)
-            {
-                DebugLog("職業カードのみプレイ可能");
-                occupationManager.PlayOccupation(player, 1);
-            }
-            else
-            {
-                DebugLog("プレイ可能なカードがありません");
-                return false;
-            }
+            // プレイヤーに選択肢を提示（UIが実装されるまでは小さい進歩のみ対応）
+            DebugLog("職業カードと小さい進歩の選択が可能ですが、現在は小さい進歩のみ実装されています");
+            improvementManager.PlayImprovement(player, true, false, action.maxCardsPerUse);
+        }
+        else
+        {
+            // 選択肢なしの場合は小さい進歩をプレイ
+            improvementManager.PlayImprovement(player, true, false, action.maxCardsPerUse);
         }
         
         return true;
@@ -287,7 +261,7 @@ public class ProgressActionConfiguration : ScriptableObject
         }
         
         // 2. 小さい進歩カードをプレイ
-        improvementManager.PlayMinorImprovement(player, action.maxCardsPerUse);
+        improvementManager.PlayImprovement(player, true, false, action.maxCardsPerUse);
         
         return true; // 小さい進歩は家族成長の成否に関係なく実行
     }
@@ -315,7 +289,7 @@ public class ProgressActionConfiguration : ScriptableObject
         }
         
         // 2. 大きい進歩カードをプレイ
-        improvementManager.PlayMajorImprovement(player, action.maxCardsPerUse);
+        improvementManager.PlayImprovement(player, false, true, action.maxCardsPerUse);
         
         return true; // 大きい進歩は改築の成否に関係なく実行
     }
