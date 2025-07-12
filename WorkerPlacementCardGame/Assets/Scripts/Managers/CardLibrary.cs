@@ -235,6 +235,33 @@ public class CardLibrary : MonoBehaviour
         return card;
     }
     
+    /// <summary>
+    /// 全ての職業カードを取得
+    /// </summary>
+    /// <returns>全ての職業カードのリスト</returns>
+    public List<OccupationCard> GetAllOccupations()
+    {
+        return new List<OccupationCard>(allOccupations);
+    }
+    
+    /// <summary>
+    /// 全ての小さな進歩カードを取得
+    /// </summary>
+    /// <returns>全ての小さな進歩カードのリスト</returns>
+    public List<ImprovementCard> GetAllMinorImprovements()
+    {
+        return new List<ImprovementCard>(allMinorImprovements);
+    }
+    
+    /// <summary>
+    /// 全ての大きな進歩カードを取得
+    /// </summary>
+    /// <returns>全ての大きな進歩カードのリスト</returns>
+    public List<ImprovementCard> GetAllMajorImprovements()
+    {
+        return new List<ImprovementCard>(allMajorImprovements);
+    }
+    
     // プレイヤーへのカード配布
     public void DistributeCardsToPlayers(List<Player> players)
     {

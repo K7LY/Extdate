@@ -1008,6 +1008,15 @@ public class Player : MonoBehaviour
         }
     }
     
+    /// <summary>
+    /// 職業カードを追加（AddOccupationのエイリアス）
+    /// </summary>
+    /// <param name="occupation">職業カード</param>
+    public void AddOccupationCard(OccupationCard occupation)
+    {
+        AddOccupation(occupation);
+    }
+    
     public bool HasOccupation(OccupationType type)
     {
         return occupations.Any(o => o.occupationType == type);
@@ -1021,6 +1030,31 @@ public class Player : MonoBehaviour
     public List<OccupationCard> GetOccupations()
     {
         return new List<OccupationCard>(occupations);
+    }
+    
+    /// <summary>
+    /// 手札の職業カードを取得
+    /// </summary>
+    /// <returns>手札の職業カードリスト</returns>
+    public List<OccupationCard> GetOccupationCards()
+    {
+        return hand.OfType<OccupationCard>().ToList();
+    }
+    
+    /// <summary>
+    /// 手札から職業カードを除去
+    /// </summary>
+    /// <param name="card">除去する職業カード</param>
+    /// <returns>除去に成功した場合true</returns>
+    public bool RemoveOccupationCardFromHand(OccupationCard card)
+    {
+        if (hand.Contains(card))
+        {
+            hand.Remove(card);
+            Debug.Log($"{playerName}が手札から職業カード「{card.cardName}」を除去しました");
+            return true;
+        }
+        return false;
     }
     
     // 進歩カード管理
