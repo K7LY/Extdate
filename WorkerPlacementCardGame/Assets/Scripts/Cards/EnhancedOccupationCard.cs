@@ -171,6 +171,45 @@ public class EnhancedOccupationCard : EnhancedCard
         return true; // 基本的に全ての収穫終了時で発動
     }
     
+    /// <summary>
+    /// 職業カードの効果説明を取得
+    /// </summary>
+    /// <returns>効果説明文字列</returns>
+    public string GetEffectDescription()
+    {
+        // 基本的な効果説明がある場合はそれを返す
+        if (!string.IsNullOrEmpty(effectDescription))
+        {
+            return effectDescription;
+        }
+        
+        // 職業タイプに基づいてデフォルトの説明を返す
+        switch (occupationType)
+        {
+            case OccupationType.Farmer:
+                return "農業に関する効果を持つ";
+            case OccupationType.Carpenter:
+                return "建築に関する効果を持つ";
+            case OccupationType.Baker:
+                return "料理に関する効果を持つ";
+            case OccupationType.Fisherman:
+                return "食料獲得に関する効果を持つ";
+            case OccupationType.Shepherd:
+                return "動物に関する効果を持つ";
+            default:
+                return "特殊な効果を持つ";
+        }
+    }
+    
+    /// <summary>
+    /// 効果説明を設定
+    /// </summary>
+    /// <param name="description">効果説明</param>
+    public void SetEffectDescription(string description)
+    {
+        effectDescription = description;
+    }
+    
     protected override void ExecuteSpecialEffect(Player player, CardEffect effect)
     {
         // 職業カード固有の特殊効果

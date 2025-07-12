@@ -389,6 +389,26 @@ public class CardTriggerManager : MonoBehaviour
     }
     
     /// <summary>
+    /// 職業カードのトリガーを登録（プレースホルダー）
+    /// </summary>
+    /// <param name="player">プレイヤー</param>
+    /// <param name="occupation">職業カード</param>
+    public void RegisterOccupationTriggers(Player player, OccupationCard occupation)
+    {
+        // 現在の実装では、職業カードは Player.AddOccupation() で自動的に管理されるため、
+        // 特別な登録処理は不要です。
+        // このメソッドは将来的な拡張のためのプレースホルダーです。
+        
+        Debug.Log($"職業カード「{occupation.cardName}」のトリガーを{player.playerName}に登録しました");
+        
+        // 職業カードの効果を分析表示
+        if (occupation is EnhancedCard enhancedOccupation)
+        {
+            AnalyzeNewCard(enhancedOccupation, player);
+        }
+    }
+    
+    /// <summary>
     /// 全プレイヤーの現在のトリガー可能カード状況をサマリー表示
     /// </summary>
     public void DebugPrintTriggerSummary()
