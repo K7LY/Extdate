@@ -332,10 +332,20 @@ public class GameManager : MonoBehaviour
             // 5. 繁殖フェーズ
             Debug.Log("🐑 繁殖フェーズ");
             ExecuteAllTriggerableCards(OccupationTrigger.BreedingPhase, player);
-            player.BreedAnimals();
             
-            // 旧仕様との互換性のため、OnBreedingトリガーも発動
-            ExecuteAllTriggerableCards(OccupationTrigger.OnBreeding, player);
+            // インタラクティブ繁殖システムを使用
+            AnimalBreedingManager breedingManager = FindObjectOfType<AnimalBreedingManager>();
+            if (breedingManager != null)
+            {
+                breedingManager.StartInteractiveBreeding(player);
+            }
+            else
+            {
+                // フォールバック: 従来の繁殖処理
+                player.BreedAnimals();
+                // 旧仕様との互換性のため、OnBreedingトリガーも発動
+                ExecuteAllTriggerableCards(OccupationTrigger.OnBreeding, player);
+            }
             
             // 6. 収穫終了時トリガー
             Debug.Log("🏁 収穫終了時フェーズ");
